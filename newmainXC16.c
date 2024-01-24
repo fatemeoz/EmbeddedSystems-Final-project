@@ -19,7 +19,7 @@ void initUART2() {
 }
 
 void initADC1() {
-  // IR Sensor analog configuratiom AN15
+  // IR Sensor analog configuration AN15
   TRISBbits.TRISB15 = 1;
   ANSELBbits.ANSB15 = 1;
   // Battery sensing analog configuration AN11
@@ -37,7 +37,7 @@ void initADC1() {
   AD1CSSLbits.CSS15 = 1;  // scan for AN15 ir sensor
   AD1CON2bits.SMPI = 1;   // N-1 channels
   AD1CON1bits.ADON = 1;  // turn on ADC
-  // IR distance sensor enable line
+  // IR distance sensor enables line
   TRISAbits.TRISA3 = 0;
   LATAbits.LATA3 = 1;
 }
@@ -80,6 +80,7 @@ int main() {
   ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
   initUART2();
   initADC1();
+  
   while (1) {
       disCalc();
       batteryCAlc();
