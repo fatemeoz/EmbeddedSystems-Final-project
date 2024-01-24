@@ -7,6 +7,25 @@
 #define TIMER1 1
 #define TIMER2 2
 #define FOSC 144000000
+#define buffsize 
+
+typedef struct {
+    char buff[buffsize];
+    int head;
+    int tail;
+    int maxlen;
+} CircBuf;
+
+
+void initializeBuff(CircBuf* cb){
+    cb->head = 0; 
+    cb->tail = 0;
+    cb->maxlen =0;    
+}
+
+int isFull(const CircBuf* cb) {
+    return cb->maxlen == buffsize;
+}
 
 void initUART2() {
   const int baund = 9600;
@@ -19,7 +38,7 @@ void initUART2() {
 }
 
 void initADC1() {
-  // IR Sensor analog configuration AN15
+  // IR Sensor analog configuratiom AN15
   TRISBbits.TRISB15 = 1;
   ANSELBbits.ANSB15 = 1;
   // Battery sensing analog configuration AN11
@@ -37,7 +56,7 @@ void initADC1() {
   AD1CSSLbits.CSS15 = 1;  // scan for AN15 ir sensor
   AD1CON2bits.SMPI = 1;   // N-1 channels
   AD1CON1bits.ADON = 1;  // turn on ADC
-  // IR distance sensor enables line
+  // IR distance sensor enable line
   TRISAbits.TRISA3 = 0;
   LATAbits.LATA3 = 1;
 }
@@ -57,8 +76,7 @@ void disCalc(){
         while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
         U2TXREG = buff[i];
     }
-    U2TXREG = '\n';
-    
+    U2TXREG = '\n';  
 }
 
 
@@ -76,14 +94,37 @@ void batteryCAlc(){
     U2TXREG = '\n';
 }
 
+
+int CircBufIn(CircBuf* cb, int value) {
+    if (isFull(cb)) {
+        return 0; // Buffer is full
+    }
+
+    cb->buff[cb->tail] = value;
+    cb->tail = (cb->tail + 1) % buffsize;
+    cb->maxlen++;
+    return 1; // Enqueue successful
+}
+
+int CircBufOut(CircBuf* cb){
+    if (cb->maxlen == 0) {
+        return -1; // Buffer is empty
+    }
+
+    int value = cb->buff[cb->head];
+    cb->head = (cb->head + 1) % buffsize;
+    cb->maxlen--;
+    return value;
+}
+
 int main() {
   ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
+  CircBuf myBuf;
+  initializeBuff(&myBuf);
   initUART2();
   initADC1();
-  
   while (1) {
       disCalc();
-      batteryCAlc();
   }
   return 0;
 }
