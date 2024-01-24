@@ -9,12 +9,15 @@
 #define FOSC 144000000
 #define buffsize 150
 
+
 typedef struct {
     char buff[buffsize];
     int head;
     int tail;
     int maxlen;
 } CircBuf;
+
+CircBuf CirBuf;
 
 
 void initializeBuff(CircBuf* cb){
@@ -27,6 +30,28 @@ int isFull(const CircBuf* cb) {
     return cb->maxlen == buffsize;
 }
 
+int CircBufIn(CircBuf* cb, char value) {
+    if (isFull(cb)) {
+        return 0; // Buffer is full
+    }
+
+    cb->buff[cb->tail] = value;
+    cb->tail = (cb->tail + 1) % buffsize;
+    cb->maxlen++;
+    return 1; // Enqueue successful
+}
+
+int CircBufOut(CircBuf* cb){
+    if (cb->maxlen == 0) {
+        return -1; // Buffer is empty
+    }
+
+    int value = cb->buff[cb->head];
+    cb->head = (cb->head + 1) % buffsize;
+    cb->maxlen--;
+    return value;
+}
+
 void initUART2() {
   const int baund = 9600;
   U2BRG = (FOSC / 2) / (16L * baund) - 1;
@@ -35,6 +60,14 @@ void initUART2() {
   // Remap UART2 pins
   RPOR0bits.RP64R = 0x03;
   RPINR19bits.U2RXR = 0x4B;
+}
+
+void UARTTX(CircBuf* cb){
+    
+    for (char i=0; i< cb->maxlen ; i++ ){
+       while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
+        U2TXREG = CircBufOut(&CirBuf);
+    }
 }
 
 void initADC1() {
@@ -71,14 +104,11 @@ void disCalc(){
     double volts = (read_value / 1023.0) * 3.3;
     y = 2.34 - 4.74 * volts + 4.06 * volts * volts - 1.60 * volts * volts * volts + 0.24 * volts * volts * volts * volts;
     y = y * 100;
-    sprintf(buff, "%.1f", y);
+    sprintf(buff, "%.1f*\n", y);
     for (int i = 0; i < strlen(buff); i++) {
-        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-        U2TXREG = buff[i];
-    }
-    U2TXREG = '\n';  
+        CircBufIn(&CirBuf,buff[i]);
+    } 
 }
-
 
 void batteryCAlc(){
     double Data = ADC1BUF0; 
@@ -86,59 +116,31 @@ void batteryCAlc(){
     double v = (Data / 1023.0) * 3.3;
     v = v * (R41 + R54) / R54;
     char buff[16];
-    sprintf(buff, "v:%.1f", v);
+    sprintf(buff, "v:%.1f*\n", v);
     for (int i = 0; i < strlen(buff); i++) {
-        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-        U2TXREG = buff[i];
+        CircBufIn(&CirBuf,buff[i]);
+        
+//        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
+//        U2TXREG = buff[i];
     }
-    U2TXREG = '\n';
+
 }
 
 
-int CircBufIn(CircBuf* cb, char value) {
-    if (isFull(cb)) {
-        return 0; // Buffer is full
-    }
 
-    cb->buff[cb->tail] = value;
-    cb->tail = (cb->tail + 1) % buffsize;
-    cb->maxlen++;
-    return 1; // Enqueue successful
-}
-
-int CircBufOut(CircBuf* cb){
-    if (cb->maxlen == 0) {
-        return -1; // Buffer is empty
-    }
-
-    int value = cb->buff[cb->head];
-    cb->head = (cb->head + 1) % buffsize;
-    cb->maxlen--;
-    return value;
-}
 
 int main() {
   ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
-  CircBuf CirBuf;
+
   initializeBuff(&CirBuf);
   initUART2();
   initADC1();
   
-  CircBufIn(&CirBuf,'s'); 
-  CircBufIn(&CirBuf,'t'); 
-  CircBufIn(&CirBuf,'d'); 
-  CircBufIn(&CirBuf,'-'); 
-  
-  for(char i=0;i<4;i++)
-  {
-    while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-    U2TXREG = CircBufOut(&CirBuf);
-  }
   
   while(1){
-//      disCalc();
-//      batteryCAlc();     
-
+     disCalc();
+     batteryCAlc();     
+     UARTTX(&CirBuf);
       
   }
   return 0;
