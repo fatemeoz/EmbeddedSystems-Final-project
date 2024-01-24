@@ -82,6 +82,7 @@ int main() {
   initADC1();
   while (1) {
       disCalc();
+      batteryCAlc();
   }
   return 0;
 }
