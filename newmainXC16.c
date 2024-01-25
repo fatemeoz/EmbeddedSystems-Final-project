@@ -10,6 +10,13 @@
 #define buffsize 150
 
 
+# define Led_Left LATBbits.LATB8
+# define Led_Right LATFbits.LATF1
+# define Led_Brakes LATFbits.LATF0 
+# define Led_Low_Intensity LATGbits.LATG1
+# define Led_Beam LATAbits.LATA7
+
+
 typedef struct {
     char buff[buffsize];
     int head;
@@ -18,7 +25,6 @@ typedef struct {
 } CircBuf;
 
 CircBuf CirBuf;
-
 
 void initializeBuff(CircBuf* cb){
     cb->head = 0; 
@@ -126,7 +132,92 @@ void batteryCAlc(){
 
 }
 
+void PWM(){
+    OC1CON1bits.OCTSEL = 7; //Internal clock 
+    OC1CON2bits.SYNCSEL = 0x1F;
+    OC1CON1bits.OCM = 6;
+    
+    OC2CON1bits.OCTSEL = 7;
+    OC2CON2bits.SYNCSEL = 0x1F;
+    OC2CON1bits.OCM = 6;
+    
+    OC3CON1bits.OCTSEL = 7;
+    OC3CON2bits.SYNCSEL = 0x1F;
+    OC3CON1bits.OCM = 6;
+    
+    OC4CON1bits.OCTSEL = 7;
+    OC4CON2bits.SYNCSEL = 0x1F;
+    OC4CON1bits.OCM = 6;
+}
 
+
+
+   // Function that setups the timer to count for the specified amount of ms
+void tmr_setup_period(int timer, int ms) {    
+
+    
+    uint32_t tcount;
+     
+     tcount = (((FOSC / 2)/256)/1000.0)*ms - 1; // fill the PR1 register with the proper number of clocks
+    
+    
+    if (timer == 1) {
+        T1CONbits.TON = 0;      // Stops the timer
+        TMR1 = 0;               // Reset timer counter
+        T1CONbits.TCKPS = 0b11;    // Set the pre scaler 
+        PR1 = tcount;      // Set the number of clock step of the counter
+        T1CONbits.TON = 1;      // Starts the timer
+    }
+    else if (timer == 2) {
+        T2CONbits.TON = 0;       // Stops the timer
+        TMR2 = 0;                // Reset timer counter
+        T2CONbits.TCKPS = 0b11;     // Set the pre scaler 
+        PR2 = tcount;       // Set the number of clock step of the counter
+        T2CONbits.TON = 1;       // Starts the timer
+    }
+    else if (timer == 3) {
+        T3CONbits.TON = 0;       // Stops the timer
+        TMR3 = 0;                // Reset timer counter
+        T3CONbits.TCKPS = 0b11;     // Set the pre scaler 
+        PR3 = tcount;       // Set the number of clock step of the counter
+        T3CONbits.TON = 1;       // Starts the timer
+    }
+}
+
+// Function to wait for the completion of a timer period
+void tmr_wait_period(int timer) { 
+    if (timer == 1) {
+        while(IFS0bits.T1IF == 0){};
+        IFS0bits.T1IF = 0; // Reset timer1 interrupt flag
+    }
+    else if (timer == 2) {
+        while(IFS0bits.T2IF == 0){};
+        IFS0bits.T2IF = 0; // Reset timer2 interrupt flag
+    }
+    else if (timer == 3) {
+        while(IFS0bits.T3IF == 0){};
+        IFS0bits.T3IF = 0; // Reset timer2 interrupt flag
+    }
+}
+
+// Function to wait for a specified number of milliseconds using a timer
+void tmr_wait_ms(int timer, int ms) {    
+    tmr_setup_period(timer, ms); 
+    tmr_wait_period(timer);     
+}
+
+void initPins() {
+    TRISAbits.TRISA0 = 0;
+    TRISGbits.TRISG9 = 0;
+    TRISEbits.TRISE8 = 1;
+    
+        ///////////test led////
+    TRISBbits.TRISB8 = 0; //LEFT
+    TRISFbits.TRISF1 = 0; //RIGHT 
+    TRISFbits.TRISF0 = 0; //RED
+    TRISGbits.TRISG1 = 0; //WHITE RED
+    TRISAbits.TRISA7 = 0; //WHITE
+}
 
 
 int main() {
@@ -135,12 +226,16 @@ int main() {
   initializeBuff(&CirBuf);
   initUART2();
   initADC1();
+  initPins();
   
   
   while(1){
      disCalc();
      batteryCAlc();     
      UARTTX(&CirBuf);
+     
+     
+
       
   }
   return 0;
