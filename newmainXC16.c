@@ -112,9 +112,9 @@ void disCalc(){
 
 void batteryCAlc(){
     double Data = ADC1BUF0; 
-    int R41 = 200.0, R54 = 100.0;
+    int R4951 = 200, R54 = 100;
     double v = (Data / 1023.0) * 3.3;
-    v = v * (R41 + R54) / R54;
+    v = v * (R4951 + R54) / R54;
     char buff[16];
     sprintf(buff, "v:%.1f*\n", v);
     for (int i = 0; i < strlen(buff); i++) {
