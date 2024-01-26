@@ -8,7 +8,7 @@
 #define TIMER2 2
 #define FOSC 144000000
 #define buffsize 150
-
+#define MAX_TASKS 3
 
 # define Led_Left LATBbits.LATB8
 # define Led_Right LATFbits.LATF1
@@ -32,7 +32,7 @@ int n;
 int N;
 } heartbeat;
 
-heartbeat schedInfo[2];
+heartbeat schedInfo[MAX_TASKS];
 
 void initializeBuff(CircBuf* cb){
     cb->head = 0; 
@@ -143,12 +143,18 @@ void UARTTX(CircBuf* cb){
 
 void UARTRX(CircBuf* cb){
 
-      for (char i=0; i< cb->maxlen ; i++ ){
-       while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-         CircBufIn(&CirBufRx, U2RXREG);
-      }
+//      for (char i=0; i< cb->maxlen ; i++ ){
+//       while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
+//         CircBufIn(&CirBufRx, U2RXREG);
+//      }
+    
 }
 
+
+void __attribute__((__interrupt__, __auto_psv__)) _U2RXInterrupt() {
+    IFS1bits.U2RXIF = 0; // Reset rx interrupt flag
+    CircBufIn(&CirBufRx, U2RXREG);
+}
 
 
 void disCalc(){
@@ -235,25 +241,37 @@ void tmr_wait_ms(int timer, int ms) {
     tmr_wait_period(timer);     
 }
 
+void initTask_N(){
+schedInfo[0].N = 1000;
+schedInfo[1].N = 2000;
+schedInfo[2].N = 500;
+}
 void scheduler() {
     int i;
-    int executed = 0;
-    for (i = 0; i < 2; i++) {
-        schedInfo[i ].n++;
-        if (schedInfo[i ].n >= schedInfo[i].N) {
-            switch(i ) {
+    for (i = 0; i < MAX_TASKS ; i++) {
+        schedInfo[i].n++;
+        if (schedInfo[i].n >= schedInfo[i].N) {
+            switch(i) {
                 case 0:
-                    disCalc() ;
+                   // disCalc() ;
                     break;
                 case 1:
-                    batteryCalc() ;
+                    //batteryCalc() ;
                     break;
+                case 2:
+                    UARTTX(&CirBufRx);
+                    break;    
+ 
             }
             schedInfo[i].n = 0;
         }
     }
 }
-
+void initInterrupt(){
+  IEC1bits.U2RXIE = 1;  // enable interrupt rx
+  U2STAbits.URXISEL = 1; // UART2 interrupt mode (1: every char received, 2: 3/4 char buffer, 3: full)
+  
+}
 int main() {
   ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
   initializeBuff(&CirBufTx);
@@ -262,12 +280,17 @@ int main() {
   initADC1();
   initPins();
   initPWM();
-
+  initTask_N();
+  initInterrupt();
+  
+  tmr_setup_period(TIMER1,1);
+  
+  
   while(1){
-     scheduler();
-     disCalc();
-     batteryCalc();     
-     UARTTX(&CirBufTx);   
+      
+    scheduler();
+    tmr_wait_period(TIMER1);
+  
   }
   return 0;
 }
