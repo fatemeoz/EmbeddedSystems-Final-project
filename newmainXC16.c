@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <xc.h>
 
 #define TIMER1 1
@@ -15,6 +16,8 @@
 # define Led_Brakes LATFbits.LATF0 
 # define Led_Low_Intensity LATGbits.LATG1
 # define Led_Beam LATAbits.LATA7
+
+bool stateFlag = false;
 
 
 typedef struct {
@@ -157,6 +160,28 @@ void __attribute__((__interrupt__, __auto_psv__)) _U2RXInterrupt() {
 }
 
 
+// Timer2 interrupt handler
+void __attribute__((__interrupt__, __auto_psv__))_T2Interrupt() {
+    IFS0bits.T2IF = 0; // reset the flag
+    T2CONbits.TON = 0; // stop timer2
+    TMR2 = 0x00; // reset timer2
+    //LATBbits.LATB0 = 1; // switch on LED D3 for test
+    if (PORTEbits.RE8 == 0x01) {
+        stateFlag = !stateFlag; // flag to avoid doing too many things in the interrupt
+    }
+    IEC0bits.T2IE = 0x00;
+}
+
+void pbHandller(){
+     if (PORTEbits.RE8 == 0) {
+        tmr_setup_period(TIMER2, 20);
+        IEC0bits.T2IE = 0x01; // enable timer2 interrupt
+        T2CONbits.TON = 0x01; // start the timer
+    }
+    
+}
+
+
 void disCalc(){
    char buff[16];
    double read_value;
@@ -242,9 +267,9 @@ void tmr_wait_ms(int timer, int ms) {
 }
 
 void initTask_N(){
-schedInfo[0].N = 1000;
+schedInfo[0].N = 500;
 schedInfo[1].N = 2000;
-schedInfo[2].N = 500;
+schedInfo[2].N = 1;
 }
 void scheduler() {
     int i;
@@ -253,14 +278,17 @@ void scheduler() {
         if (schedInfo[i].n >= schedInfo[i].N) {
             switch(i) {
                 case 0:
-                   // disCalc() ;
+                    if(stateFlag)
+                    disCalc() ;
                     break;
                 case 1:
                     //batteryCalc() ;
                     break;
                 case 2:
-                    UARTTX(&CirBufRx);
-                    break;    
+                    UARTTX(&CirBufTx);
+                    pbHandller();
+                    break;   
+                    
  
             }
             schedInfo[i].n = 0;
@@ -282,13 +310,16 @@ int main() {
   initPWM();
   initTask_N();
   initInterrupt();
-  
   tmr_setup_period(TIMER1,1);
   
   
   while(1){
       
     scheduler();
+    
+    
+
+    
     tmr_wait_period(TIMER1);
   
   }
