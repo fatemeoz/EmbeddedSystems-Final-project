@@ -27,6 +27,13 @@ typedef struct {
 CircBuf CirBufTx;
 CircBuf CirBufRx;
 
+typedef struct {
+int n;
+int N;
+} heartbeat;
+
+heartbeat schedInfo[2];
+
 void initializeBuff(CircBuf* cb){
     cb->head = 0; 
     cb->tail = 0;
@@ -138,7 +145,7 @@ void UARTRX(CircBuf* cb){
 
       for (char i=0; i< cb->maxlen ; i++ ){
        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-        U2RXREG = CircBufIn(&CirBufRx);
+         CircBufIn(&CirBufRx, U2RXREG);
       }
 }
 
@@ -160,7 +167,7 @@ void disCalc(){
     } 
 }
 
-void batteryCAlc(){
+void batteryCalc(){
     double Data = ADC1BUF0; 
     int R4951 = 200, R54 = 100;
     double v = (Data / 1023.0) * 3.3;
@@ -168,12 +175,10 @@ void batteryCAlc(){
     char buff[16];
     sprintf(buff, "v:%.1f*\n", v);
     for (int i = 0; i < strlen(buff); i++) {
-        CircBufIn(&CirBufTx,buff[i]);
-        
+        CircBufIn(&CirBufTx,buff[i]);   
 //        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
 //        U2TXREG = buff[i];
     }
-
 }
 
 
@@ -181,12 +186,8 @@ void batteryCAlc(){
 
    // Function that setups the timer to count for the specified amount of ms
 void tmr_setup_period(int timer, int ms) {    
-
-    
     uint32_t tcount;
-     
-     tcount = (((FOSC / 2)/256)/1000.0)*ms - 1; // fill the PR1 register with the proper number of clocks
-    
+    tcount = (((FOSC / 2)/256)/1000.0)*ms - 1; // fill the PR1 register with the proper number of clocks
     
     if (timer == 1) {
         T1CONbits.TON = 0;      // Stops the timer
@@ -227,31 +228,46 @@ void tmr_wait_period(int timer) {
     }
 }
 
+
 // Function to wait for a specified number of milliseconds using a timer
 void tmr_wait_ms(int timer, int ms) {    
     tmr_setup_period(timer, ms); 
     tmr_wait_period(timer);     
 }
 
-
+void scheduler() {
+    int i;
+    int executed = 0;
+    for (i = 0; i < 2; i++) {
+        schedInfo[i ].n++;
+        if (schedInfo[i ].n >= schedInfo[i].N) {
+            switch(i ) {
+                case 0:
+                    disCalc() ;
+                    break;
+                case 1:
+                    batteryCalc() ;
+                    break;
+            }
+            schedInfo[i].n = 0;
+        }
+    }
+}
 
 int main() {
   ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
-
   initializeBuff(&CirBufTx);
+  initializeBuff(&CirBufRx);
   initUART2();
   initADC1();
   initPins();
   initPWM();
-  
-  while(1){
-     disCalc();
-     batteryCAlc();     
-     UARTTX(&CirBufTx);
-     
-     
 
-      
+  while(1){
+     scheduler();
+     disCalc();
+     batteryCalc();     
+     UARTTX(&CirBufTx);   
   }
   return 0;
 }
