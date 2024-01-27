@@ -9,7 +9,7 @@
 #define TIMER2 2
 #define FOSC 144000000
 #define buffsize 150
-#define MAX_TASKS 3
+#define MAX_TASKS 4
 #define PWM_FREQ 10000
 
 # define Led_Left LATBbits.LATB8
@@ -19,7 +19,7 @@
 # define Led_Beam LATAbits.LATA7
 
 bool stateFlag = false;
-
+double distance = 0;
 
 typedef struct {
     char buff[buffsize];
@@ -170,14 +170,13 @@ void pbHandller(){
 void disCalc(){
    char buff[16];
    double read_value;
-   double y;
    while (!AD1CON1bits.DONE);
     // Read from sensor
     read_value = ADC1BUF1;
     double volts = (read_value / 1023.0) * 3.3;
-    y = 2.34 - 4.74 * volts + 4.06 * volts * volts - 1.60 * volts * volts * volts + 0.24 * volts * volts * volts * volts;
-    y = y * 100;
-    sprintf(buff, "%.1f*\n", y);
+    distance = 2.34 - 4.74 * volts + 4.06 * volts * volts - 1.60 * volts * volts * volts + 0.24 * volts * volts * volts * volts;
+    distance = distance * 100;
+    sprintf(buff, "%.1f*\n", distance);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);
     } 
@@ -189,7 +188,7 @@ void batteryCalc(){
     double v = (Data / 1023.0) * 3.3;
     v = v * (R4951 + R54) / R54;
     char buff[16];
-    sprintf(buff, "v:%.1f*\n", v);
+    sprintf(buff, "$MABTT,%.2f*\n", v);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);   
 //        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
@@ -252,9 +251,10 @@ void tmr_wait_ms(int timer, int ms) {
 }
 
 void initTask_N(){
-schedInfo[0].N = 500;
+schedInfo[0].N = 600;
 schedInfo[1].N = 2000;
 schedInfo[2].N = 1;
+schedInfo[3].N = 500;
 }
 void scheduler() {
     int i;
@@ -263,16 +263,20 @@ void scheduler() {
         if (schedInfo[i].n >= schedInfo[i].N) {
             switch(i) {
                 case 0:
-                    if(stateFlag)
+                    //if(stateFlag)
                     disCalc() ;
                     break;
                 case 1:
-                    //batteryCalc() ;
+                    batteryCalc() ;
                     break;
                 case 2:
                     UARTTX(&CirBufTx);
                     pbHandller();
                     break;   
+                case 3:
+                    sendDistUART();
+                    sentDcUART();
+                    break;    
                     
  
             }
@@ -390,6 +394,24 @@ void setZero(){
     setPWM(4,0);
 }
 
+
+void sendDistUART(){
+    char buff[16];
+    sprintf(buff, "$MDIST,%.2f*\n", distance);
+    for (int i = 0; i < strlen(buff); i++) {
+        CircBufIn(&CirBufTx,buff[i]);  
+}
+}
+
+void sentDcUART(){
+    char buff[50];
+    sprintf(buff, "$MPWM,%.2f,%.2f,%.2f,%.2f*\n", distance,distance,distance,distance);
+ // sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dc1,dc2,dc3,dc4);
+    for (int i = 0; i < strlen(buff); i++) {
+        CircBufIn(&CirBufTx,buff[i]);  
+}
+}
+
 int main() {
   ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
   initializeBuff(&CirBufTx);
@@ -402,6 +424,10 @@ int main() {
   initInterrupt();
   initPWM();
   setZero();
+  
+  
+  
+  
   tmr_setup_period(TIMER1,1);
   
   
@@ -409,6 +435,9 @@ int main() {
       
     scheduler();
     
+    
+    
+
     
     tmr_wait_period(TIMER1);
   
