@@ -10,6 +10,7 @@
 #define FOSC 144000000
 #define buffsize 150
 #define MAX_TASKS 3
+#define PWM_FREQ 10000
 
 # define Led_Left LATBbits.LATB8
 # define Led_Right LATFbits.LATF1
@@ -90,23 +91,7 @@ void initADC1() {
   LATAbits.LATA3 = 1;
 }
 
-void initPWM(){
-    OC1CON1bits.OCTSEL = 7; //Internal clock 
-    OC1CON2bits.SYNCSEL = 0x1F;
-    OC1CON1bits.OCM = 6;
-    
-    OC2CON1bits.OCTSEL = 7;
-    OC2CON2bits.SYNCSEL = 0x1F;
-    OC2CON1bits.OCM = 6;
-    
-    OC3CON1bits.OCTSEL = 7;
-    OC3CON2bits.SYNCSEL = 0x1F;
-    OC3CON1bits.OCM = 6;
-    
-    OC4CON1bits.OCTSEL = 7;
-    OC4CON2bits.SYNCSEL = 0x1F;
-    OC4CON1bits.OCM = 6;
-}
+
 
 
 int isFull(const CircBuf* cb) {
@@ -300,6 +285,111 @@ void initInterrupt(){
   U2STAbits.URXISEL = 1; // UART2 interrupt mode (1: every char received, 2: 3/4 char buffer, 3: full)
   
 }
+
+void initPWM(){
+    
+     TRISDbits.TRISD1 = 0;
+     TRISDbits.TRISD2 = 0;
+     TRISDbits.TRISD3 = 0;
+     TRISDbits.TRISD4 = 0;
+     
+     //Remap the pins
+     RPOR0bits.RP65R = 0b010000;   //OC1
+     RPOR1bits.RP66R = 0b010001;   //OC2
+     RPOR1bits.RP67R = 0b010010;   //OC3
+     RPOR2bits.RP68R = 0b010011;   //OC4
+     
+     
+     
+     
+    //Configure the Left Wheels
+    //Clear all the contents of two control registers
+    OC1CON1 = 0x0000;
+    OC1CON2 = 0x0000;
+    //Set the peripheral clock as source for the OCx module
+    OC1CON1bits.OCTSEL = 0b111;
+    //Sets the OC modality to Edge-Aligned PWM mode
+    OC1CON1bits.OCM = 0b110;
+    //Sets the synchronization source for the OCx module to No Sync
+    OC1CON2bits.SYNCSEL = 0x1F; 
+    
+    //Clear all the contents of two control registers
+    OC2CON1 = 0x0000;
+    OC2CON2 = 0x0000;
+    //Set the peripheral clock as source for the OCx module
+    OC2CON1bits.OCTSEL = 0b111;
+    //Sets the OC modality to Edge-Aligned PWM mode
+    OC2CON1bits.OCM = 0b110;
+    //Sets the synchronization source for the OCx module to No Sync
+    OC2CON2bits.SYNCSEL = 0x1F; 
+    
+    //Configure the Right Wheels
+    //Clear all the contents of two control registers
+    OC3CON1 = 0x0000;
+    OC3CON2 = 0x0000;
+    //Set the peripheral clock as source for the OCx module
+    OC3CON1bits.OCTSEL = 0b111;
+    //Sets the OC modality to Edge-Aligned PWM mode
+    OC3CON1bits.OCM = 0b110;
+    //Sets the synchronization source for the OCx module to No Sync
+    OC3CON2bits.SYNCSEL = 0x1F; 
+    
+    //Clear all the contents of two control registers
+    OC4CON1 = 0x0000;
+    OC4CON2 = 0x0000;
+    //Set the peripheral clock as source for the OCx module
+    OC4CON1bits.OCTSEL = 0b111;
+    //Sets the OC modality to Edge-Aligned PWM mode
+    OC4CON1bits.OCM = 0b110;
+    //Sets the synchronization source for the OCx module to No Sync
+    OC4CON2bits.SYNCSEL = 0x1F;
+    
+    OC1RS = 144000000/PWM_FREQ; //Set the PWM frequency 
+    OC2RS = 144000000/PWM_FREQ; //Set the PWM frequency 
+    OC3RS = 144000000/PWM_FREQ; //Set the PWM frequency 
+    OC4RS = 144000000/PWM_FREQ; //Set the PWM frequency 
+    
+    
+//    OC1CON1bits.OCTSEL = 7; //Internal clock 
+//    OC1CON2bits.SYNCSEL = 0x1F;
+//    OC1CON1bits.OCM = 6;
+//    
+//    OC2CON1bits.OCTSEL = 7;
+//    OC2CON2bits.SYNCSEL = 0x1F;
+//    OC2CON1bits.OCM = 6;
+//    
+//    OC3CON1bits.OCTSEL = 7;
+//    OC3CON2bits.SYNCSEL = 0x1F;
+//    OC3CON1bits.OCM = 6;
+//    
+//    OC4CON1bits.OCTSEL = 7;
+//    OC4CON2bits.SYNCSEL = 0x1F;
+//    OC4CON1bits.OCM = 6;
+    
+}
+void setPWM(int ocNumber, int dc){
+    switch (ocNumber){
+        case 1:
+            OC1R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
+            break;
+        case 2:    
+             OC2R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
+             break;
+        case 3:  
+            OC3R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
+            break;
+        case 4:  
+            OC4R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
+            break;
+        }
+}
+void setZero(){
+    setPWM(1,0);
+    setPWM(2,0);
+    setPWM(3,0);
+    setPWM(4,0);
+}
+
 int main() {
   ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
   initializeBuff(&CirBufTx);
@@ -310,6 +400,8 @@ int main() {
   initPWM();
   initTask_N();
   initInterrupt();
+  initPWM();
+  setZero();
   tmr_setup_period(TIMER1,1);
   
   
@@ -317,8 +409,6 @@ int main() {
       
     scheduler();
     
-    
-
     
     tmr_wait_period(TIMER1);
   
