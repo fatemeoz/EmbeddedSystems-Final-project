@@ -27,8 +27,8 @@
 
 bool stateFlag = false;
 double distance = 0;
-double minth;
-double maxth;
+int minth = 10;
+int maxth = 50;
 typedef struct {
     char buff[buffsize];
     int head;
@@ -48,13 +48,12 @@ heartbeat schedInfo[MAX_TASKS];
 
 typedef struct{
     int state;
-    char msg_type[3]; // type is 5 chars + string terminator
+    char msg_type[6]; // type is 5 chars + string terminator
     char msg_payload[100];  // assume payload cannot be longer than100 chars
     int index_type;
     int index_payload;
 } parser_state;
 
-int  parsebyte(parser_state* ps,  char byte) ;
 
 void initializeBuff(CircBuf* cb){
     cb->head = 0; 
@@ -269,6 +268,8 @@ int parse_byte(parser_state* ps, char byte) {
                 ps->state = STATE_TYPE;
                 ps->index_type = 0;
             }
+//            if (byte == ',')
+//                 ps->state = STATE_PAYLOAD;
             break;
         case STATE_TYPE:
             if (byte == ',') {
@@ -304,6 +305,7 @@ int parse_byte(parser_state* ps, char byte) {
     }
     return NO_MESSAGE;
 }
+
 // Function to wait for a specified number of milliseconds using a timer
 void tmr_wait_ms(int timer, int ms) {    
     tmr_setup_period(timer, ms); 
@@ -465,7 +467,7 @@ void sendDistUART(){
 
 void sentDcUART(){
     char buff[50];
-    sprintf(buff, "$MPWM,%.2f,%.2f,%.2f,%.2f*\n", distance,distance,distance,distance);
+    sprintf(buff, "$MPWM,%d,%d*\n", minth,maxth);
  // sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dc1,dc2,dc3,dc4);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);  
@@ -474,17 +476,20 @@ void sentDcUART(){
 
 void pcth(const char* msg){
     minth = extract_integer(msg);
-    int i = next_value(msg, i);
+    int i = next_value(msg, 0);
     maxth = extract_integer(msg+i);
-    //converting them from cm to m 
-    minth = minth/100;
-    maxth = maxth/100;
+    
+     char buff[40];
+    sprintf(buff, "$MAX TH :  %d  \n", maxth);
+    for (int i = 0; i < strlen(buff); i++) {
+        CircBufIn(&CirBufTx,buff[i]);   }
+
     
 }
 
 int extract_integer(const char* str) {
     int i = 0, number = 0, sign = 1;
-    if (str[i] == '=') {
+    if (str[i] == '-') {
         sign = -1;
         i++;
     }
@@ -507,6 +512,8 @@ int next_value(const char* msg, int i) {
             i++;
 return i;
 }
+
+
 
 int main() {
     ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
@@ -532,8 +539,25 @@ int main() {
     if(CirBufRx.maxlen > 0){
         ret = parse_byte(&pstate,CircBufOut(&CirBufRx));
         if(ret == NEW_MESSAGE){
+            
+             char buff[40];
+    sprintf(buff, "$PAYLOAD2: %s \n", pstate.msg_type);
+    for (int i = 0; i < strlen(buff); i++) {
+        CircBufIn(&CirBufTx,buff[i]);   
+//        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
+//        U2TXREG = buff[i];
+    }
             if(strcmp(pstate.msg_type, "PCTH") ==0)
-                pcth(pstate.msg_payload);
+            { pcth(pstate.msg_payload);
+         
+             char buff[40];
+    sprintf(buff, "$PAYLOAD: %s \n %d   ,   %d  \n", pstate.msg_payload ,minth , maxth);
+    for (int i = 0; i < strlen(buff); i++) {
+        CircBufIn(&CirBufTx,buff[i]);   
+//        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
+//        U2TXREG = buff[i];
+    }
+            }
         }
     }
     tmr_wait_period(TIMER1);
