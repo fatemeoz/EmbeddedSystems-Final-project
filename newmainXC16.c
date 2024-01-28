@@ -18,6 +18,13 @@
 # define Led_Low_Intensity LATGbits.LATG1
 # define Led_Beam LATAbits.LATA7
 
+
+#define STATE_DOLLAR  (1) // we discard everything until a dollaris found
+#define STATE_TYPE    (2) // we are reading the type of msg untila comma is found
+#define STATE_PAYLOAD (3) // we read the payload until an asterixis found
+#define NEW_MESSAGE (1) // new message received and parsedcompletely
+#define NO_MESSAGE (0) // no new messages
+
 bool stateFlag = false;
 double distance = 0;
 
@@ -37,6 +44,16 @@ int N;
 } heartbeat;
 
 heartbeat schedInfo[MAX_TASKS];
+
+typedef struct{
+    int state;
+    char msg_type[3]; // type is 5 chars + string terminator
+    char msg_payload[100];  // assume payload cannot be longer than100 chars
+    int index_type;
+    int index_payload;
+} parser_state;
+
+int  parsebyte(parser_state* ps,  char byte) ;
 
 void initializeBuff(CircBuf* cb){
     cb->head = 0; 
@@ -109,12 +126,12 @@ int CircBufIn(CircBuf* cb, char value) {
     return 1; // Enqueue successful
 }
 
-int CircBufOut(CircBuf* cb){
+char CircBufOut(CircBuf* cb){
     if (cb->maxlen == 0) {
         return -1; // Buffer is empty
     }
 
-    int value = cb->buff[cb->head];
+    char value = cb->buff[cb->head];
     cb->head = (cb->head + 1) % buffsize;
     cb->maxlen--;
     return value;
@@ -170,6 +187,7 @@ void pbHandller(){
 void disCalc(){
    char buff[16];
    double read_value;
+   double y;
    while (!AD1CON1bits.DONE);
     // Read from sensor
     read_value = ADC1BUF1;
@@ -243,7 +261,48 @@ void tmr_wait_period(int timer) {
     }
 }
 
-
+int parse_byte(parser_state* ps, char byte) {
+    switch (ps->state) {
+        case STATE_DOLLAR:
+            if (byte == '$') {
+                ps->state = STATE_TYPE;
+                ps->index_type = 0;
+            }
+            break;
+        case STATE_TYPE:
+            if (byte == ',') {
+                ps->state = STATE_PAYLOAD;
+                ps->msg_type[ps->index_type] = '\0';
+                ps->index_payload = 0; // initialize properly the index
+            } else if (ps->index_type == 6) { // error! 
+                ps->state = STATE_DOLLAR;
+                ps->index_type = 0;
+			} else if (byte == '*') {
+				ps->state = STATE_DOLLAR; // get ready for a new message
+                ps->msg_type[ps->index_type] = '\0';
+				ps->msg_payload[0] = '\0'; // no payload
+                return NEW_MESSAGE;
+            } else {
+                ps->msg_type[ps->index_type] = byte; // ok!
+                ps->index_type++; // increment for the next time;
+            }
+            break;
+        case STATE_PAYLOAD:
+            if (byte == '*') {
+                ps->state = STATE_DOLLAR; // get ready for a new message
+                ps->msg_payload[ps->index_payload] = '\0';
+                return NEW_MESSAGE;
+            } else if (ps->index_payload == 100) { // error
+                ps->state = STATE_DOLLAR;
+                ps->index_payload = 0;
+            } else {
+                ps->msg_payload[ps->index_payload] = byte; // ok!
+                ps->index_payload++; // increment for the next time;
+            }
+            break;
+    }
+    return NO_MESSAGE;
+}
 // Function to wait for a specified number of milliseconds using a timer
 void tmr_wait_ms(int timer, int ms) {    
     tmr_setup_period(timer, ms); 
@@ -409,36 +468,42 @@ void sentDcUART(){
  // sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dc1,dc2,dc3,dc4);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);  
+    }
 }
+
+void pcth(char msg[]){
+    int minth; 
+    int maxth;
 }
 
 int main() {
-  ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
-  initializeBuff(&CirBufTx);
-  initializeBuff(&CirBufRx);
-  initUART2();
-  initADC1();
-  initPins();
-  initPWM();
-  initTask_N();
-  initInterrupt();
-  initPWM();
-  setZero();
-  
-  
-  
-  
-  tmr_setup_period(TIMER1,1);
-  
-  
+    ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
+    initializeBuff(&CirBufTx);
+    initializeBuff(&CirBufRx);
+    initUART2();
+    initADC1();
+    initPins();
+    initPWM();
+    initTask_N();
+    initInterrupt();
+    initPWM();
+    setZero();
+    tmr_setup_period(TIMER1,1);
+    parser_state  pstate ;
+    pstate.state = STATE_DOLLAR;
+    pstate.index_type = 0;
+    pstate.index_payload = 0;
+    int ret;
   while(1){
-      
     scheduler();
-    
-    
-    
-
-    
+    tmr_wait_period(TIMER1);
+    if(CirBufRx.maxlen > 0){
+        ret = parse_byte(&pstate,CircBufOut(&CirBufRx));
+        if(ret == NEW_MESSAGE){
+            if(strcmp(pstate.msg_type, "PCTH") ==0)
+                pcth(pstate.msg_payload);
+        }
+    }
     tmr_wait_period(TIMER1);
   
   }
