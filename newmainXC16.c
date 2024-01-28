@@ -27,7 +27,8 @@
 
 bool stateFlag = false;
 double distance = 0;
-
+double minth;
+double maxth;
 typedef struct {
     char buff[buffsize];
     int head;
@@ -310,10 +311,10 @@ void tmr_wait_ms(int timer, int ms) {
 }
 
 void initTask_N(){
-schedInfo[0].N = 600;
-schedInfo[1].N = 2000;
-schedInfo[2].N = 1;
-schedInfo[3].N = 500;
+    schedInfo[0].N = 600;
+    schedInfo[1].N = 2000;
+    schedInfo[2].N = 1;
+    schedInfo[3].N = 500;
 }
 void scheduler() {
     int i;
@@ -471,9 +472,40 @@ void sentDcUART(){
     }
 }
 
-void pcth(char msg[]){
-    int minth; 
-    int maxth;
+void pcth(const char* msg){
+    minth = extract_integer(msg);
+    int i = next_value(msg, i);
+    maxth = extract_integer(msg+i);
+    //converting them from cm to m 
+    minth = minth/100;
+    maxth = maxth/100;
+    
+}
+
+int extract_integer(const char* str) {
+    int i = 0, number = 0, sign = 1;
+    if (str[i] == '=') {
+        sign = -1;
+        i++;
+    }
+    else if (str[i] == '+') {
+        sign = 1;
+        i++;
+    }
+    while (str[i] != ',' && str[i] != '\0') {
+        number *= 10; // multiply the current number by 10;
+        number += str[i] - '0'; // converting character to decimal
+        number;
+        i++;
+    }
+    return sign*number;
+}
+
+int next_value(const char* msg, int i) {
+    while (msg[i] != ',' && msg[i] != '\0') { i++; }
+        if (msg[i] == ',')
+            i++;
+return i;
 }
 
 int main() {
