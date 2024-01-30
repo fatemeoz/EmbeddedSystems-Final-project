@@ -9,30 +9,31 @@
 #define TIMER2 2
 #define FOSC 144000000
 #define buffsize 150
-#define MAX_TASKS 4
+#define MAX_TASKS 5
 #define PWM_FREQ 10000
 
-# define Led_Left LATBbits.LATB8
-# define Led_Right LATFbits.LATF1
-# define Led_Brakes LATFbits.LATF0 
-# define Led_Low_Intensity LATGbits.LATG1
-# define Led_Beam LATAbits.LATA7
+#define Led_Left LATBbits.LATB8
+#define Led_Right LATFbits.LATF1
+#define Led_Brakes LATFbits.LATF0 
+#define Led_Low_Intensity LATGbits.LATG1
+#define Led_Beam LATAbits.LATA7
+#define Led_A0 LAT LATAbits.LATA0
 
 #define Move_Forward 0
 #define Move_Backward 1
 #define Spot_spin_clockwise 2
 #define Spot_spin_unclockwise 3
 
-# define ocLB 1
-# define ocLF 2
-# define ocRB 3
-# define ocRF 4
+#define ocLB 1
+#define ocLF 2
+#define ocRB 3
+#define ocRF 4
 
-#define STATE_DOLLAR  (1) // we discard everything until a dollaris found
-#define STATE_TYPE    (2) // we are reading the type of msg untila comma is found
-#define STATE_PAYLOAD (3) // we read the payload until an asterixis found
-#define NEW_MESSAGE (1) // new message received and parsedcompletely
-#define NO_MESSAGE (0) // no new messages
+#define STATE_DOLLAR  1 // we discard everything until a dollaris found
+#define STATE_TYPE    2 // we are reading the type of msg untila comma is found
+#define STATE_PAYLOAD 3 // we read the payload until an asterixis found
+#define NEW_MESSAGE 1 // new message received and parsedcompletely
+#define NO_MESSAGE 0 // no new messages
 
 int minth = 20;
 int maxth = 50;
@@ -67,7 +68,6 @@ typedef struct{
     int index_payload;
 } parser_state;
 
-
 void initializeBuff(CircBuf* cb){
     cb->head = 0; 
     cb->tail = 0;
@@ -78,8 +78,6 @@ void initPins() {
     TRISAbits.TRISA0 = 0;
     TRISGbits.TRISG9 = 0;
     TRISEbits.TRISE8 = 1;
-    
-        ///////////test led////
     TRISBbits.TRISB8 = 0; //LEFT
     TRISFbits.TRISF1 = 0; //RIGHT 
     TRISFbits.TRISF0 = 0; //RED
@@ -133,12 +131,12 @@ int calculateSurgeAndYaw() {
         surge = MAX_PWM;
         yaw = 0;
         move_state = Move_Forward;
-    } else {
+    } 
+    else {
         surge = (distance - minth) * MAX_PWM / (maxth - minth);
         yaw = MAX_PWM - surge;
         move_state = Move_Forward;
     }
-    
     return move_state;
 }
 
@@ -146,11 +144,9 @@ int calculateSurgeAndYaw() {
 void controlMotors() {
     char move_state;
     move_state = calculateSurgeAndYaw();
-
     // Calculate left and right PWM values
     left_pwm = surge + yaw;
     right_pwm = surge - yaw;
-
     // Scale PWM values if they exceed MAX_PWM
     int max_val = (abs(left_pwm) > abs(right_pwm)) ? abs(left_pwm) : abs(right_pwm);
     if (max_val > MAX_PWM) {
@@ -213,11 +209,10 @@ char CircBufOut(CircBuf* cb){
     return value;
 }
 
-
 void UARTTX(CircBuf* cb){
     for (char i=0; i< cb->maxlen ; i++ ){
         while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-            U2TXREG = CircBufOut(&CirBufTx);
+        U2TXREG = CircBufOut(&CirBufTx);
     }
 }
 
@@ -225,22 +220,19 @@ void UARTRX(CircBuf* cb){
     for (char i=0; i< cb->maxlen ; i++ ){
         while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
             CircBufIn(&CirBufRx, U2RXREG);
-     }
+    }
 }
-
 
 void __attribute__((__interrupt__, __auto_psv__)) _U2RXInterrupt() {
     IFS1bits.U2RXIF = 0; // Reset rx interrupt flag
     CircBufIn(&CirBufRx, U2RXREG);
 }
 
-
 // Timer2 interrupt handler
 void __attribute__((__interrupt__, __auto_psv__))_T2Interrupt() {
     IFS0bits.T2IF = 0; // reset the flag
     T2CONbits.TON = 0; // stop timer2
     TMR2 = 0x00; // reset timer2
-    //LATBbits.LATB0 = 1; // switch on LED D3 for test
     if (PORTEbits.RE8 == 0x01) {
         stateFlag = !stateFlag; // flag to avoid doing too many things in the interrupt
     }
@@ -254,7 +246,6 @@ void pbHandller(){
         T2CONbits.TON = 0x01; // start the timer
     }
 }
-
 
 void disCalc(){
     char buff[16];
@@ -281,34 +272,31 @@ void batteryCalc(){
     sprintf(buff, "$MABTT,%.2f*\n", v);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);   
-//        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-//        U2TXREG = buff[i];
     }
 }
    // Function that setups the timer to count for the specified amount of ms
 void tmr_setup_period(int timer, int ms) {    
     uint32_t tcount;
-    tcount = (((FOSC / 2)/256)/1000.0)*ms - 1; // fill the PR1 register with the proper number of clocks 
+    tcount = (((FOSC / 2)/256)/1000.0)*ms - 1;
     if (timer == 1) {
-        T1CONbits.TON = 0;      // Stops the timer
-        TMR1 = 0;               // Reset timer counter
-        T1CONbits.TCKPS = 0b11;    // Set the pre scaler 
-        PR1 = tcount;      // Set the number of clock step of the counter
-        T1CONbits.TON = 1;      // Starts the timer
-    }
+        T1CONbits.TON = 0;      
+        TMR1 = 0;               
+        T1CONbits.TCKPS = 0b11;   
+        PR1 = tcount;      
+        T1CONbits.TON = 1;     
     else if (timer == 2) {
-        T2CONbits.TON = 0;       // Stops the timer
-        TMR2 = 0;                // Reset timer counter
-        T2CONbits.TCKPS = 0b11;     // Set the pre scaler 
-        PR2 = tcount;       // Set the number of clock step of the counter
-        T2CONbits.TON = 1;       // Starts the timer
+        T2CONbits.TON = 0;       
+        TMR2 = 0;               
+        T2CONbits.TCKPS = 0b11;    
+        PR2 = tcount;       
+        T2CONbits.TON = 1;       
     }
     else if (timer == 3) {
-        T3CONbits.TON = 0;       // Stops the timer
-        TMR3 = 0;                // Reset timer counter
-        T3CONbits.TCKPS = 0b11;     // Set the pre scaler 
-        PR3 = tcount;       // Set the number of clock step of the counter
-        T3CONbits.TON = 1;       // Starts the timer
+        T3CONbits.TON = 0;       
+        TMR3 = 0;                
+        T3CONbits.TCKPS = 0b11;   
+        PR3 = tcount;       
+        T3CONbits.TON = 1;      
     }
 }
 
@@ -335,8 +323,6 @@ int parse_byte(parser_state* ps, char byte) {
                 ps->state = STATE_TYPE;
                 ps->index_type = 0;
             }
-//            if (byte == ',')
-//                 ps->state = STATE_PAYLOAD;
             break;
         case STATE_TYPE:
             if (byte == ',') {
@@ -389,6 +375,7 @@ void initTask_N(){
     schedInfo[1].N = 2000;
     schedInfo[2].N = 1;
     schedInfo[3].N = 500;
+    schedInfo[4].N = 1000; 
 }
 
 void scheduler() {
@@ -413,7 +400,10 @@ void scheduler() {
                 case 3:
                     //sendDistUART();
                     //sentDcUART();
-                    break;    
+                    break; 
+                case 4:
+                    Led_A0 = !Led_A0;
+                    break;   
             }
             schedInfo[i].n = 0;
         }
@@ -426,15 +416,15 @@ void initInterrupt(){
 }
 
 void initPWM(){
-     TRISDbits.TRISD1 = 0;
-     TRISDbits.TRISD2 = 0;
-     TRISDbits.TRISD3 = 0;
-     TRISDbits.TRISD4 = 0;
+    TRISDbits.TRISD1 = 0;
+    TRISDbits.TRISD2 = 0;
+    TRISDbits.TRISD3 = 0;
+    TRISDbits.TRISD4 = 0;
      //Remap the pins
-     RPOR0bits.RP65R = 0b010000;   //OC1
-     RPOR1bits.RP66R = 0b010001;   //OC2
-     RPOR1bits.RP67R = 0b010010;   //OC3
-     RPOR2bits.RP68R = 0b010011;   //OC4 
+    RPOR0bits.RP65R = 0b010000;   //OC1
+    RPOR1bits.RP66R = 0b010001;   //OC2
+    RPOR1bits.RP67R = 0b010010;   //OC3
+    RPOR2bits.RP68R = 0b010011;   //OC4 
     //Configure the Left Wheels
     //Clear all the contents of two control registers
     OC1CON1 = 0x0000;
