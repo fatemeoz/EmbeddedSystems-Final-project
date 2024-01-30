@@ -12,6 +12,9 @@
 #define MAX_TASKS 5
 #define PWM_FREQ 10000
 
+#define waitForStart 0 
+#define Moving 1
+
 #define Led_Left LATBbits.LATB8
 #define Led_Right LATFbits.LATF1
 #define Led_Brakes LATFbits.LATF0 
@@ -29,20 +32,25 @@
 #define ocRB 3
 #define ocRF 4
 
+
+
 #define STATE_DOLLAR  1 // we discard everything until a dollaris found
 #define STATE_TYPE    2 // we are reading the type of msg untila comma is found
 #define STATE_PAYLOAD 3 // we read the payload until an asterixis found
 #define NEW_MESSAGE 1 // new message received and parsedcompletely
 #define NO_MESSAGE 0 // no new messages
 
-int minth = 20;
-int maxth = 50;
+int minth = 35;
+int maxth = 60;
 int MAX_PWM = 100; // Maximum PWM value
 int surge, left_pwm , right_pwm;
 int yaw;
-bool stateFlag = false;
+bool stateFlag = waitForStart;
 double distance = 0;
-      
+int ret;
+int dcUART[4];
+    
+
 typedef struct {
     char buff[buffsize];
     int head;
@@ -67,7 +75,7 @@ typedef struct{
     int index_type;
     int index_payload;
 } parser_state;
-
+parser_state  pstate ;
 void initializeBuff(CircBuf* cb){
     cb->head = 0; 
     cb->tail = 0;
@@ -153,32 +161,53 @@ void controlMotors() {
         left_pwm = left_pwm * MAX_PWM / max_val;
         right_pwm = right_pwm * MAX_PWM / max_val;
     }
-    left_pwm = left_pwm/3;
-    right_pwm = right_pwm / 3;
+    left_pwm = abs(left_pwm)/2;
+    right_pwm = abs(right_pwm)/2 ;
+    
     switch (move_state) {
         case Move_Forward:
             setPWM( ocLB, 0);
             setPWM( ocLF, left_pwm);
             setPWM( ocRB, 0);
             setPWM( ocRF, right_pwm);
+            
+            dcUART[0]= 0;
+            dcUART[1]= left_pwm;
+            dcUART[2]= 0;
+            dcUART[3]= right_pwm;
             break;
         case Move_Backward:
             setPWM( ocLB, left_pwm);
             setPWM( ocLF, 0);
             setPWM( ocRB, right_pwm);
             setPWM( ocRF, 0);
+            
+            dcUART[0]= left_pwm;
+            dcUART[1]= 0;
+            dcUART[2]= right_pwm;
+            dcUART[3]= 0;
             break;
         case Spot_spin_clockwise:
             setPWM( ocLB,  0);
             setPWM( ocLF,  left_pwm);
             setPWM( ocRB,  right_pwm);
             setPWM( ocRF,  0);
+            
+            dcUART[0]= 0;
+            dcUART[1]= left_pwm;
+            dcUART[2]= right_pwm;
+            dcUART[3]= 0;
             break;
         case Spot_spin_unclockwise:
             setPWM( ocLB,  left_pwm);
             setPWM( ocLF,  0);
             setPWM( ocRB,  0);
             setPWM( ocRF,  right_pwm);
+            
+            dcUART[0]= left_pwm;
+            dcUART[2]= 0;
+            dcUART[3]= 0;
+            dcUART[4]= right_pwm;
             break;
     } 
     // Set PWM to motors (functionality to be implemented based on your hardware)
@@ -248,19 +277,14 @@ void pbHandller(){
 }
 
 void disCalc(){
-    char buff[16];
     double read_value;
-    double y;
     while (!AD1CON1bits.DONE);
     // Read from sensor
     read_value = ADC1BUF1;
     double volts = (read_value / 1023.0) * 3.3;
     distance = 2.34 - 4.74 * volts + 4.06 * volts * volts - 1.60 * volts * volts * volts + 0.24 * volts * volts * volts * volts;
     distance = distance * 100;
-    sprintf(buff, "%.1f*\n", distance);
-    for (int i = 0; i < strlen(buff); i++) {
-        CircBufIn(&CirBufTx,buff[i]);
-    } 
+
 }
 
 void batteryCalc(){
@@ -315,6 +339,49 @@ void tmr_wait_period(int timer) {
         while(IFS0bits.T3IF == 0);
         IFS0bits.T3IF = 0; // Reset timer2 interrupt flag
     }
+}
+
+void ledHandler (){
+    if(stateFlag == waitForStart){
+        Led_Beam = 0; 
+        Led_Low_Intensity = 0;
+    }
+    else if(stateFlag == Moving){ 
+       if(surge > 50){
+        //beam on
+        Led_Beam = 1;
+        Led_Brakes = 0;
+        Led_Low_Intensity = 0;
+    }
+    else{
+        Led_Beam = 0;
+        Led_Brakes = 1;
+        Led_Low_Intensity = 1;
+        //breaks and low intensity on
+    }
+    if(yaw>15){
+        Led_Left = 0;
+        
+        //right blinks in 1hz and left is off
+    }
+    else {
+        Led_Left = 0; 
+        Led_Right = 0;
+        //right stops blinking
+    }
+   }
+}
+
+void led_blinker(){
+    Led_A0 = !Led_A0;
+    if(stateFlag == waitForStart){
+        Led_Left = !Led_Left;
+       Led_Right = !Led_Right; 
+    }
+    if(yaw>15) 
+         Led_Right = !Led_Right;
+    else if (stateFlag == Moving)
+         Led_Right = 0; 
 }
 
 int parse_byte(parser_state* ps, char byte) {
@@ -372,10 +439,10 @@ void tmr_wait_ms(int timer, int ms) {
 }
 
 void initTask_N(){
-    schedInfo[0].N = 100;
+    schedInfo[0].N = 1;
     schedInfo[1].N = 2000;
     schedInfo[2].N = 1;
-    schedInfo[3].N = 500;
+    schedInfo[3].N = 100;
     schedInfo[4].N = 1000; 
 }
 
@@ -386,28 +453,32 @@ void scheduler() {
         if (schedInfo[i].n >= schedInfo[i].N) {
             switch(i) {
                 case 0:
+                    disCalc() ;
                     if(stateFlag){
-                        disCalc() ;
                         controlMotors();
                     }
                     else{
-                        setZero();  
+                        setMotorsZero();  
                     }
                     break;
                 case 1:
-                    batteryCalc() ;
+                    
                     break;
                 case 2:
                     UARTTX(&CirBufTx);
                     pbHandller();
+                    ledHandler();
+                    reciver();
                     break;   
                 case 3:
-                    //sendDistUART();
-                    //sentDcUART();
+                    sendDistUART();
+                    sendDcUART();
                     break; 
                 case 4:
-                    Led_A0 = !Led_A0;
+                    led_blinker();
+                    batteryCalc();
                     break;   
+                
             }
             schedInfo[i].n = 0;
         }
@@ -488,13 +559,19 @@ void setPWM(int ocNumber, int dc){
             OC4R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
         }
+    
 }
 
-void setZero(){
+void setMotorsZero(){
     setPWM(ocLB,0);
     setPWM(ocLF,0);
     setPWM(ocRB,0);
     setPWM(ocRF,0);
+    
+    dcUART[0]= 0;
+    dcUART[1]= 0;
+    dcUART[2]= 0;
+    dcUART[3]= 0;
 }
 
 void sendDistUART(){
@@ -505,9 +582,10 @@ void sendDistUART(){
     }
 }
 
-void sentDcUART(){
+void sendDcUART(){
+    
     char buff[50];
-    sprintf(buff, "$MPWM,%d,%d*\n", minth,maxth);
+    sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dcUART[0],dcUART[1],dcUART[2],dcUART[3] );
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);  
     }
@@ -550,28 +628,8 @@ int next_value(const char* msg, int i) {
     return i;
 }
 
-int main() {
-    ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
-    initializeBuff(&CirBufTx);
-    initializeBuff(&CirBufRx);
-    initUART2();
-    initADC1();
-    initPins();
-    initPWM();
-    initTask_N();
-    initInterrupt();
-    initPWM();
-    setZero();
-    tmr_setup_period(TIMER1,1);
-    parser_state  pstate ;
-    pstate.state = STATE_DOLLAR;
-    pstate.index_type = 0;
-    pstate.index_payload = 0;
-    int ret;
-    while(1){
-        scheduler();
-        tmr_wait_period(TIMER1);
-        if(CirBufRx.maxlen > 0){
+void reciver(){
+    if(CirBufRx.maxlen > 0){
             ret = parse_byte(&pstate,CircBufOut(&CirBufRx));
             if(ret == NEW_MESSAGE){
                 char buff[40];
@@ -588,7 +646,31 @@ int main() {
                     }
                 }
             }
-        }
+    }
+}
+
+int main() {
+    ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
+    initializeBuff(&CirBufTx);
+    initializeBuff(&CirBufRx);
+    initUART2();
+    initADC1();
+    initPins();
+    initPWM();
+    initTask_N();
+    initInterrupt();
+    initPWM();
+    setMotorsZero();
+    tmr_setup_period(TIMER1,1);
+    
+
+    pstate.state = STATE_DOLLAR;
+    pstate.index_type = 0;
+    pstate.index_payload = 0;
+
+
+    while(1){
+        scheduler();
         tmr_wait_period(TIMER1);
     }
     return 0;
