@@ -17,7 +17,7 @@
 #define Led_Brakes LATFbits.LATF0 
 #define Led_Low_Intensity LATGbits.LATG1
 #define Led_Beam LATAbits.LATA7
-#define Led_A0 LAT LATAbits.LATA0
+#define Led_A0 LATAbits.LATA0
 
 #define Move_Forward 0
 #define Move_Backward 1
@@ -283,7 +283,8 @@ void tmr_setup_period(int timer, int ms) {
         TMR1 = 0;               
         T1CONbits.TCKPS = 0b11;   
         PR1 = tcount;      
-        T1CONbits.TON = 1;     
+        T1CONbits.TON = 1;  
+    }   
     else if (timer == 2) {
         T2CONbits.TON = 0;       
         TMR2 = 0;               
@@ -386,8 +387,11 @@ void scheduler() {
             switch(i) {
                 case 0:
                     if(stateFlag){
-                    disCalc() ;
-                    controlMotors();
+                        disCalc() ;
+                        controlMotors();
+                    }
+                    else{
+                        setZero();  
                     }
                     break;
                 case 1:
@@ -487,10 +491,10 @@ void setPWM(int ocNumber, int dc){
 }
 
 void setZero(){
-    setPWM(1,0);
-    setPWM(2,0);
-    setPWM(3,0);
-    setPWM(4,0);
+    setPWM(ocLB,0);
+    setPWM(ocLF,0);
+    setPWM(ocRB,0);
+    setPWM(ocRF,0);
 }
 
 void sendDistUART(){
@@ -575,8 +579,8 @@ int main() {
                 for (int i = 0; i < strlen(buff); i++) {
                     CircBufIn(&CirBufTx,buff[i]);
                 }
-                if(strcmp(pstate.msg_type, "PCTH") ==0){ p
-                    cth(pstate.msg_payload);
+                if(strcmp(pstate.msg_type, "PCTH") ==0){ 
+                    pcth(pstate.msg_payload);
                     char buff[40];
                     sprintf(buff, "$PAYLOAD: %s \n %d   ,   %d  \n", pstate.msg_payload ,minth , maxth);
                     for (int i = 0; i < strlen(buff); i++) {
