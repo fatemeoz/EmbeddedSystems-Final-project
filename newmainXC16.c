@@ -23,14 +23,10 @@
 #define Spot_spin_clockwise 2
 #define Spot_spin_unclockwise 3
 
-
 # define ocLB 1
 # define ocLF 2
 # define ocRB 3
 # define ocRF 4
-
-
-
 
 #define STATE_DOLLAR  (1) // we discard everything until a dollaris found
 #define STATE_TYPE    (2) // we are reading the type of msg untila comma is found
@@ -38,17 +34,14 @@
 #define NEW_MESSAGE (1) // new message received and parsedcompletely
 #define NO_MESSAGE (0) // no new messages
 
-bool stateFlag = false;
-double distance = 0;
 int minth = 20;
 int maxth = 50;
 int MAX_PWM = 100; // Maximum PWM value
-
 int surge, left_pwm , right_pwm;
 int yaw;
-
-    
-    
+bool stateFlag = false;
+double distance = 0;
+      
 typedef struct {
     char buff[buffsize];
     int head;
@@ -60,8 +53,8 @@ CircBuf CirBufTx;
 CircBuf CirBufRx;
 
 typedef struct {
-int n;
-int N;
+    int n;
+    int N;
 } heartbeat;
 
 heartbeat schedInfo[MAX_TASKS];
@@ -73,10 +66,6 @@ typedef struct{
     int index_type;
     int index_payload;
 } parser_state;
-
-
-
-
 
 
 void initializeBuff(CircBuf* cb){
@@ -99,55 +88,53 @@ void initPins() {
 }
 
 void initUART2() {
-  const int baund = 9600;
-  U2BRG = (FOSC / 2) / (16L * baund) - 1;
-  U2MODEbits.UARTEN = 1;  // enable UART2
-  U2STAbits.UTXEN = 1;    // enable U2TX (must be after UARTEN)
-  // Remap UART2 pins
-  RPOR0bits.RP64R = 0x03;
-  RPINR19bits.U2RXR = 0x4B;
+    const int baund = 9600;
+    U2BRG = (FOSC / 2) / (16L * baund) - 1;
+    U2MODEbits.UARTEN = 1;  // enable UART2
+    U2STAbits.UTXEN = 1;    // enable U2TX (must be after UARTEN)
+    // Remap UART2 pins
+    RPOR0bits.RP64R = 0x03;
+    RPINR19bits.U2RXR = 0x4B;
 }
 
 void initADC1() {
-  // IR Sensor analog configuratiom AN15
-  TRISBbits.TRISB15 = 1;
-  ANSELBbits.ANSB15 = 1;
-  // Battery sensing analog configuration AN11
-  TRISBbits.TRISB11 = 1;
-  ANSELBbits.ANSB11 = 1;
-  AD1CON3bits.ADCS = 14;   // 14*T_CY
-  AD1CON1bits.ASAM = 1;    // automatic sampling start
-  AD1CON1bits.SSRC = 7;    // automatic conversion
-  AD1CON3bits.SAMC = 16;   // sampling lasts 16 Tad
-  AD1CON2bits.CHPS = 0;    // use CH0 2-channels sequential sampling mode
-  AD1CON1bits.SIMSAM = 0;  // sequential sampling
-  // Scan mode specific configuration
-  AD1CON2bits.CSCNA = 1;  // scan mode enabled
-  AD1CSSLbits.CSS11 = 1;  // scan for AN11 battery
-  AD1CSSLbits.CSS15 = 1;  // scan for AN15 ir sensor
-  AD1CON2bits.SMPI = 1;   // N-1 channels
-  AD1CON1bits.ADON = 1;  // turn on ADC
-  // IR distance sensor enable line
-  TRISAbits.TRISA3 = 0;
-  LATAbits.LATA3 = 1;
+    // IR Sensor analog configuratiom AN15
+    TRISBbits.TRISB15 = 1;
+    ANSELBbits.ANSB15 = 1;
+    // Battery sensing analog configuration AN11
+    TRISBbits.TRISB11 = 1;
+    ANSELBbits.ANSB11 = 1;
+    AD1CON3bits.ADCS = 14;   // 14*T_CY
+    AD1CON1bits.ASAM = 1;    // automatic sampling start
+    AD1CON1bits.SSRC = 7;    // automatic conversion
+    AD1CON3bits.SAMC = 16;   // sampling lasts 16 Tad
+    AD1CON2bits.CHPS = 0;    // use CH0 2-channels sequential sampling mode
+    AD1CON1bits.SIMSAM = 0;  // sequential sampling
+    // Scan mode specific configuration
+    AD1CON2bits.CSCNA = 1;  // scan mode enabled
+    AD1CSSLbits.CSS11 = 1;  // scan for AN11 battery
+    AD1CSSLbits.CSS15 = 1;  // scan for AN15 ir sensor
+    AD1CON2bits.SMPI = 1;   // N-1 channels
+    AD1CON1bits.ADON = 1;  // turn on ADC
+    // IR distance sensor enable line
+    TRISAbits.TRISA3 = 0;
+    LATAbits.LATA3 = 1;
 }
-
 
 // Function to calculate surge and yaw based on distance
 int calculateSurgeAndYaw() {
-
-        
     int move_state;
     if (distance < minth) {
         surge = 0;
         yaw = MAX_PWM;
         move_state = Spot_spin_clockwise;
-    } else if (distance > maxth) {
+    } 
+    else if (distance > maxth) {
         surge = MAX_PWM;
-       yaw = 0;
-       move_state = Move_Forward;
+        yaw = 0;
+        move_state = Move_Forward;
     } else {
-      surge = (distance - minth) * MAX_PWM / (maxth - minth);
+        surge = (distance - minth) * MAX_PWM / (maxth - minth);
         yaw = MAX_PWM - surge;
         move_state = Move_Forward;
     }
@@ -170,52 +157,37 @@ void controlMotors() {
         left_pwm = left_pwm * MAX_PWM / max_val;
         right_pwm = right_pwm * MAX_PWM / max_val;
     }
-    
     left_pwm = left_pwm/3;
     right_pwm = right_pwm / 3;
-
-    
     switch (move_state) {
-        
         case Move_Forward:
             setPWM( ocLB, 0);
             setPWM( ocLF, left_pwm);
             setPWM( ocRB, 0);
             setPWM( ocRF, right_pwm);
             break;
-
         case Move_Backward:
             setPWM( ocLB, left_pwm);
             setPWM( ocLF, 0);
             setPWM( ocRB, right_pwm);
             setPWM( ocRF, 0);
             break;
-
         case Spot_spin_clockwise:
             setPWM( ocLB,  0);
             setPWM( ocLF,  left_pwm);
             setPWM( ocRB,  right_pwm);
             setPWM( ocRF,  0);
             break;
-
         case Spot_spin_unclockwise:
             setPWM( ocLB,  left_pwm);
             setPWM( ocLF,  0);
             setPWM( ocRB,  0);
             setPWM( ocRF,  right_pwm);
             break;
-
     } 
-    
-    
-
     // Set PWM to motors (functionality to be implemented based on your hardware)
     // setMotorPWM(left_pwm, right_pwm);
 }
-
-
-
-
 
 int isFull(const CircBuf* cb) {
     return cb->maxlen == buffsize;
@@ -225,7 +197,6 @@ int CircBufIn(CircBuf* cb, char value) {
     if (isFull(cb)) {
         return 0; // Buffer is full
     }
-
     cb->buff[cb->tail] = value;
     cb->tail = (cb->tail + 1) % buffsize;
     cb->maxlen++;
@@ -236,7 +207,6 @@ char CircBufOut(CircBuf* cb){
     if (cb->maxlen == 0) {
         return -1; // Buffer is empty
     }
-
     char value = cb->buff[cb->head];
     cb->head = (cb->head + 1) % buffsize;
     cb->maxlen--;
@@ -245,20 +215,17 @@ char CircBufOut(CircBuf* cb){
 
 
 void UARTTX(CircBuf* cb){
-    
     for (char i=0; i< cb->maxlen ; i++ ){
-       while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-        U2TXREG = CircBufOut(&CirBufTx);
+        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
+            U2TXREG = CircBufOut(&CirBufTx);
     }
 }
 
 void UARTRX(CircBuf* cb){
-
-//      for (char i=0; i< cb->maxlen ; i++ ){
-//       while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-//         CircBufIn(&CirBufRx, U2RXREG);
-//      }
-    
+    for (char i=0; i< cb->maxlen ; i++ ){
+        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
+            CircBufIn(&CirBufRx, U2RXREG);
+     }
 }
 
 
@@ -281,20 +248,19 @@ void __attribute__((__interrupt__, __auto_psv__))_T2Interrupt() {
 }
 
 void pbHandller(){
-     if (PORTEbits.RE8 == 0) {
+    if (PORTEbits.RE8 == 0) {
         tmr_setup_period(TIMER2, 20);
         IEC0bits.T2IE = 0x01; // enable timer2 interrupt
         T2CONbits.TON = 0x01; // start the timer
     }
-    
 }
 
 
 void disCalc(){
-   char buff[16];
-   double read_value;
-   double y;
-   while (!AD1CON1bits.DONE);
+    char buff[16];
+    double read_value;
+    double y;
+    while (!AD1CON1bits.DONE);
     // Read from sensor
     read_value = ADC1BUF1;
     double volts = (read_value / 1023.0) * 3.3;
@@ -319,15 +285,10 @@ void batteryCalc(){
 //        U2TXREG = buff[i];
     }
 }
-
-
-
-
    // Function that setups the timer to count for the specified amount of ms
 void tmr_setup_period(int timer, int ms) {    
     uint32_t tcount;
-    tcount = (((FOSC / 2)/256)/1000.0)*ms - 1; // fill the PR1 register with the proper number of clocks
-    
+    tcount = (((FOSC / 2)/256)/1000.0)*ms - 1; // fill the PR1 register with the proper number of clocks 
     if (timer == 1) {
         T1CONbits.TON = 0;      // Stops the timer
         TMR1 = 0;               // Reset timer counter
@@ -354,15 +315,15 @@ void tmr_setup_period(int timer, int ms) {
 // Function to wait for the completion of a timer period
 void tmr_wait_period(int timer) { 
     if (timer == 1) {
-        while(IFS0bits.T1IF == 0){};
+        while(IFS0bits.T1IF == 0);
         IFS0bits.T1IF = 0; // Reset timer1 interrupt flag
     }
     else if (timer == 2) {
-        while(IFS0bits.T2IF == 0){};
+        while(IFS0bits.T2IF == 0);
         IFS0bits.T2IF = 0; // Reset timer2 interrupt flag
     }
     else if (timer == 3) {
-        while(IFS0bits.T3IF == 0){};
+        while(IFS0bits.T3IF == 0);
         IFS0bits.T3IF = 0; // Reset timer2 interrupt flag
     }
 }
@@ -382,15 +343,18 @@ int parse_byte(parser_state* ps, char byte) {
                 ps->state = STATE_PAYLOAD;
                 ps->msg_type[ps->index_type] = '\0';
                 ps->index_payload = 0; // initialize properly the index
-            } else if (ps->index_type == 6) { // error! 
+            } 
+            else if (ps->index_type == 6) { // error! 
                 ps->state = STATE_DOLLAR;
                 ps->index_type = 0;
-			} else if (byte == '*') {
+			} 
+            else if (byte == '*') {
 				ps->state = STATE_DOLLAR; // get ready for a new message
                 ps->msg_type[ps->index_type] = '\0';
 				ps->msg_payload[0] = '\0'; // no payload
                 return NEW_MESSAGE;
-            } else {
+            } 
+            else {
                 ps->msg_type[ps->index_type] = byte; // ok!
                 ps->index_type++; // increment for the next time;
             }
@@ -400,10 +364,12 @@ int parse_byte(parser_state* ps, char byte) {
                 ps->state = STATE_DOLLAR; // get ready for a new message
                 ps->msg_payload[ps->index_payload] = '\0';
                 return NEW_MESSAGE;
-            } else if (ps->index_payload == 100) { // error
+            }
+            else if (ps->index_payload == 100) { // error
                 ps->state = STATE_DOLLAR;
                 ps->index_payload = 0;
-            } else {
+            } 
+            else {
                 ps->msg_payload[ps->index_payload] = byte; // ok!
                 ps->index_payload++; // increment for the next time;
             }
@@ -424,6 +390,7 @@ void initTask_N(){
     schedInfo[2].N = 1;
     schedInfo[3].N = 500;
 }
+
 void scheduler() {
     int i;
     for (i = 0; i < MAX_TASKS ; i++) {
@@ -447,35 +414,27 @@ void scheduler() {
                     //sendDistUART();
                     //sentDcUART();
                     break;    
-                    
- 
             }
             schedInfo[i].n = 0;
         }
     }
 }
+
 void initInterrupt(){
-  IEC1bits.U2RXIE = 1;  // enable interrupt rx
-  U2STAbits.URXISEL = 1; // UART2 interrupt mode (1: every char received, 2: 3/4 char buffer, 3: full)
-  
+    IEC1bits.U2RXIE = 1;  // enable interrupt rx
+    U2STAbits.URXISEL = 1; // UART2 interrupt mode (1: every char received, 2: 3/4 char buffer, 3: full)  
 }
 
 void initPWM(){
-    
      TRISDbits.TRISD1 = 0;
      TRISDbits.TRISD2 = 0;
      TRISDbits.TRISD3 = 0;
      TRISDbits.TRISD4 = 0;
-     
      //Remap the pins
      RPOR0bits.RP65R = 0b010000;   //OC1
      RPOR1bits.RP66R = 0b010001;   //OC2
      RPOR1bits.RP67R = 0b010010;   //OC3
-     RPOR2bits.RP68R = 0b010011;   //OC4
-     
-     
-     
-     
+     RPOR2bits.RP68R = 0b010011;   //OC4 
     //Configure the Left Wheels
     //Clear all the contents of two control registers
     OC1CON1 = 0x0000;
@@ -486,7 +445,6 @@ void initPWM(){
     OC1CON1bits.OCM = 0b110;
     //Sets the synchronization source for the OCx module to No Sync
     OC1CON2bits.SYNCSEL = 0x1F; 
-    
     //Clear all the contents of two control registers
     OC2CON1 = 0x0000;
     OC2CON2 = 0x0000;
@@ -496,7 +454,6 @@ void initPWM(){
     OC2CON1bits.OCM = 0b110;
     //Sets the synchronization source for the OCx module to No Sync
     OC2CON2bits.SYNCSEL = 0x1F; 
-    
     //Configure the Right Wheels
     //Clear all the contents of two control registers
     OC3CON1 = 0x0000;
@@ -507,7 +464,6 @@ void initPWM(){
     OC3CON1bits.OCM = 0b110;
     //Sets the synchronization source for the OCx module to No Sync
     OC3CON2bits.SYNCSEL = 0x1F; 
-    
     //Clear all the contents of two control registers
     OC4CON1 = 0x0000;
     OC4CON2 = 0x0000;
@@ -517,40 +473,20 @@ void initPWM(){
     OC4CON1bits.OCM = 0b110;
     //Sets the synchronization source for the OCx module to No Sync
     OC4CON2bits.SYNCSEL = 0x1F;
-    
     OC1RS = 144000000/PWM_FREQ; //Set the PWM frequency 
     OC2RS = 144000000/PWM_FREQ; //Set the PWM frequency 
     OC3RS = 144000000/PWM_FREQ; //Set the PWM frequency 
     OC4RS = 144000000/PWM_FREQ; //Set the PWM frequency 
-    
-    
-//    OC1CON1bits.OCTSEL = 7; //Internal clock 
-//    OC1CON2bits.SYNCSEL = 0x1F;
-//    OC1CON1bits.OCM = 6;
-//    
-//    OC2CON1bits.OCTSEL = 7;
-//    OC2CON2bits.SYNCSEL = 0x1F;
-//    OC2CON1bits.OCM = 6;
-//    
-//    OC3CON1bits.OCTSEL = 7;
-//    OC3CON2bits.SYNCSEL = 0x1F;
-//    OC3CON1bits.OCM = 6;
-//    
-//    OC4CON1bits.OCTSEL = 7;
-//    OC4CON2bits.SYNCSEL = 0x1F;
-//    OC4CON1bits.OCM = 6;
-    
 }
+
 void setPWM(int ocNumber, int dc){
     switch (ocNumber){
-        
-        
         case ocLB:
             OC1R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
         case ocLF:    
-             OC2R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
-             break;
+            OC2R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
+            break;
         case ocRB:  
             OC3R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
@@ -559,6 +495,7 @@ void setPWM(int ocNumber, int dc){
             break;
         }
 }
+
 void setZero(){
     setPWM(1,0);
     setPWM(2,0);
@@ -566,19 +503,17 @@ void setZero(){
     setPWM(4,0);
 }
 
-
 void sendDistUART(){
     char buff[16];
     sprintf(buff, "$MDIST,%.2f*\n", distance);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);  
-}
+    }
 }
 
 void sentDcUART(){
     char buff[50];
     sprintf(buff, "$MPWM,%d,%d*\n", minth,maxth);
- // sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dc1,dc2,dc3,dc4);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);  
     }
@@ -587,14 +522,12 @@ void sentDcUART(){
 void pcth(const char* msg){
     minth = extract_integer(msg);
     int i = next_value(msg, 0);
-    maxth = extract_integer(msg+i);
-    
-     char buff[40];
+    maxth = extract_integer(msg+i); 
+    char buff[40];
     sprintf(buff, "$MAX TH :  %d  \n", maxth);
     for (int i = 0; i < strlen(buff); i++) {
-        CircBufIn(&CirBufTx,buff[i]);   }
-
-    
+        CircBufIn(&CirBufTx,buff[i]);   
+    }
 }
 
 int extract_integer(const char* str) {
@@ -620,10 +553,8 @@ int next_value(const char* msg, int i) {
     while (msg[i] != ',' && msg[i] != '\0') { i++; }
         if (msg[i] == ',')
             i++;
-return i;
+    return i;
 }
-
-
 
 int main() {
     ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
@@ -643,35 +574,28 @@ int main() {
     pstate.index_type = 0;
     pstate.index_payload = 0;
     int ret;
-  while(1){
-    scheduler();
-    tmr_wait_period(TIMER1);
-    if(CirBufRx.maxlen > 0){
-        ret = parse_byte(&pstate,CircBufOut(&CirBufRx));
-        if(ret == NEW_MESSAGE){
-            
-             char buff[40];
-    sprintf(buff, "$PAYLOAD2: %s \n", pstate.msg_type);
-    for (int i = 0; i < strlen(buff); i++) {
-        CircBufIn(&CirBufTx,buff[i]);   
-//        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-//        U2TXREG = buff[i];
-    }
-            if(strcmp(pstate.msg_type, "PCTH") ==0)
-            { pcth(pstate.msg_payload);
-         
-             char buff[40];
-    sprintf(buff, "$PAYLOAD: %s \n %d   ,   %d  \n", pstate.msg_payload ,minth , maxth);
-    for (int i = 0; i < strlen(buff); i++) {
-        CircBufIn(&CirBufTx,buff[i]);   
-//        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-//        U2TXREG = buff[i];
-    }
+    while(1){
+        scheduler();
+        tmr_wait_period(TIMER1);
+        if(CirBufRx.maxlen > 0){
+            ret = parse_byte(&pstate,CircBufOut(&CirBufRx));
+            if(ret == NEW_MESSAGE){
+                char buff[40];
+                sprintf(buff, "$PAYLOAD2: %s \n", pstate.msg_type);
+                for (int i = 0; i < strlen(buff); i++) {
+                    CircBufIn(&CirBufTx,buff[i]);
+                }
+                if(strcmp(pstate.msg_type, "PCTH") ==0){ p
+                    cth(pstate.msg_payload);
+                    char buff[40];
+                    sprintf(buff, "$PAYLOAD: %s \n %d   ,   %d  \n", pstate.msg_payload ,minth , maxth);
+                    for (int i = 0; i < strlen(buff); i++) {
+                        CircBufIn(&CirBufTx,buff[i]);
+                    }
+                }
             }
         }
+        tmr_wait_period(TIMER1);
     }
-    tmr_wait_period(TIMER1);
-  
-  }
-  return 0;
+    return 0;
 }
