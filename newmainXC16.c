@@ -18,6 +18,19 @@
 # define Led_Low_Intensity LATGbits.LATG1
 # define Led_Beam LATAbits.LATA7
 
+#define Move_Forward 0
+#define Move_Backward 1
+#define Spot_spin_clockwise 2
+#define Spot_spin_unclockwise 3
+
+
+# define ocLB 1
+# define ocLF 2
+# define ocRB 3
+# define ocRF 4
+
+
+
 
 #define STATE_DOLLAR  (1) // we discard everything until a dollaris found
 #define STATE_TYPE    (2) // we are reading the type of msg untila comma is found
@@ -27,8 +40,15 @@
 
 bool stateFlag = false;
 double distance = 0;
-int minth = 10;
+int minth = 20;
 int maxth = 50;
+int MAX_PWM = 100; // Maximum PWM value
+
+int surge, left_pwm , right_pwm;
+int yaw;
+
+    
+    
 typedef struct {
     char buff[buffsize];
     int head;
@@ -53,6 +73,10 @@ typedef struct{
     int index_type;
     int index_payload;
 } parser_state;
+
+
+
+
 
 
 void initializeBuff(CircBuf* cb){
@@ -107,6 +131,88 @@ void initADC1() {
   TRISAbits.TRISA3 = 0;
   LATAbits.LATA3 = 1;
 }
+
+
+// Function to calculate surge and yaw based on distance
+int calculateSurgeAndYaw() {
+
+        
+    int move_state;
+    if (distance < minth) {
+        surge = 0;
+        yaw = MAX_PWM;
+        move_state = Spot_spin_clockwise;
+    } else if (distance > maxth) {
+        surge = MAX_PWM;
+       yaw = 0;
+       move_state = Move_Forward;
+    } else {
+      surge = (distance - minth) * MAX_PWM / (maxth - minth);
+        yaw = MAX_PWM - surge;
+        move_state = Move_Forward;
+    }
+    
+    return move_state;
+}
+
+// Modified controlMotors function
+void controlMotors() {
+    char move_state;
+    move_state = calculateSurgeAndYaw();
+
+    // Calculate left and right PWM values
+    left_pwm = surge + yaw;
+    right_pwm = surge - yaw;
+
+    // Scale PWM values if they exceed MAX_PWM
+    int max_val = (abs(left_pwm) > abs(right_pwm)) ? abs(left_pwm) : abs(right_pwm);
+    if (max_val > MAX_PWM) {
+        left_pwm = left_pwm * MAX_PWM / max_val;
+        right_pwm = right_pwm * MAX_PWM / max_val;
+    }
+    
+    left_pwm = left_pwm/3;
+    right_pwm = right_pwm / 3;
+
+    
+    switch (move_state) {
+        
+        case Move_Forward:
+            setPWM( ocLB, 0);
+            setPWM( ocLF, left_pwm);
+            setPWM( ocRB, 0);
+            setPWM( ocRF, right_pwm);
+            break;
+
+        case Move_Backward:
+            setPWM( ocLB, left_pwm);
+            setPWM( ocLF, 0);
+            setPWM( ocRB, right_pwm);
+            setPWM( ocRF, 0);
+            break;
+
+        case Spot_spin_clockwise:
+            setPWM( ocLB,  0);
+            setPWM( ocLF,  left_pwm);
+            setPWM( ocRB,  right_pwm);
+            setPWM( ocRF,  0);
+            break;
+
+        case Spot_spin_unclockwise:
+            setPWM( ocLB,  left_pwm);
+            setPWM( ocLF,  0);
+            setPWM( ocRB,  0);
+            setPWM( ocRF,  right_pwm);
+            break;
+
+    } 
+    
+    
+
+    // Set PWM to motors (functionality to be implemented based on your hardware)
+    // setMotorPWM(left_pwm, right_pwm);
+}
+
 
 
 
@@ -313,7 +419,7 @@ void tmr_wait_ms(int timer, int ms) {
 }
 
 void initTask_N(){
-    schedInfo[0].N = 600;
+    schedInfo[0].N = 100;
     schedInfo[1].N = 2000;
     schedInfo[2].N = 1;
     schedInfo[3].N = 500;
@@ -325,8 +431,10 @@ void scheduler() {
         if (schedInfo[i].n >= schedInfo[i].N) {
             switch(i) {
                 case 0:
-                    //if(stateFlag)
+                    if(stateFlag){
                     disCalc() ;
+                    controlMotors();
+                    }
                     break;
                 case 1:
                     batteryCalc() ;
@@ -336,8 +444,8 @@ void scheduler() {
                     pbHandller();
                     break;   
                 case 3:
-                    sendDistUART();
-                    sentDcUART();
+                    //sendDistUART();
+                    //sentDcUART();
                     break;    
                     
  
@@ -435,16 +543,18 @@ void initPWM(){
 }
 void setPWM(int ocNumber, int dc){
     switch (ocNumber){
-        case 1:
+        
+        
+        case ocLB:
             OC1R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
-        case 2:    
+        case ocLF:    
              OC2R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
              break;
-        case 3:  
+        case ocRB:  
             OC3R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
-        case 4:  
+        case ocRF:  
             OC4R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
         }
