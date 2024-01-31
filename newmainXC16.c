@@ -1,12 +1,11 @@
-
-//Course: Embedded Systems 
-//Authors: Fatemeh Ozgoli (5269981)
-//         Peyman Peyvandipour (5573284)
-//         Arghavan Dalvand (5606362)
-//Professor: Enrico Simetti
-//January 2024
-
-
+/* 
+Course: Embedded Systems 
+    Authors: Fatemeh Ozgoli (5269981)
+             Peyman Peyvandipour (5573284)
+             Arghavan Dalvand (5606362)
+    Professor: Enrico Simetti
+    January 2024
+*/
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,8 +16,21 @@
 #define TIMER1 1
 #define TIMER2 2
 #define FOSC 144000000
+/*
+ Data of the battery : 12 bytes
+ Data of the distance: 11 bytes
+ Data of the duty cycle: 18 bytes
+ Battery frequency: 1hz
+ Distance frequency: 10hz
+ Battery frequency: 10hz
+ all together, we will have 31 bytes of data, they would be written in the buffer with 2 different
+ frequencys, considering the fact that every packet would includes 2 extra bits for start and stop, 
+ we can say that in every second, 960 byte can be sent. So, in a 100 ms, we can say in the first 45 bits,
+ we have data, and then, the next streams of data will be in the next 100 ms. So it's enough to have a buffer 
+ who has 45 bits. because the data exists in the buffer already, is the data that we dont need anymore.
+*/
 #define buffsize 45
-#define MAX_TASKS 5
+#define MAX_TASKS 4
 #define PWM_FREQ 10000
 
 #define waitForStart 0 
@@ -47,12 +59,12 @@
 #define NEW_MESSAGE 1 // new message received and parsedcompletely
 #define NO_MESSAGE 0 // no new messages
 
-int minth = 35; 
-int maxth = 60; 
+int MINTH = 35; 
+int MAXTH = 60; 
 int MAX_PWM = 100; // max duty cycle for PWM
 int surge,yaw, left_pwm , right_pwm;
 bool stateFlag = waitForStart;
-float distance = 0;
+int distance = 0;
 int ret;
 int dcUART[4];
 bool Led_rightflag = 0;
@@ -75,8 +87,8 @@ heartbeat schedInfo[MAX_TASKS];
 
 typedef struct{
     int state;
-    char msg_type[6]; // type is 5 chars + string terminator
-    char msg_payload[100];  // assume payload cannot be longer than100 chars
+    char msg_type[5]; // type is 5 chars + string terminator
+    char msg_payload[10];  // assume payload cannot be longer than100 chars
     int index_type;
     int index_payload;
 } parser_state;
@@ -137,18 +149,18 @@ void initADC1() {
 // Function to calculate surge and yaw based on distance
 int calculateSurgeAndYaw() {
     int move_state;
-    if (distance < minth) {
+    if (distance < MINTH) {
         surge = 0;
         yaw = MAX_PWM;
         move_state = Spot_spin_clockwise;
     } 
-    else if (distance > maxth) {
+    else if (distance > MAXTH) {
         surge = MAX_PWM;
         yaw = 0;
         move_state = Move_Forward;
     } 
     else {
-        surge = (distance - minth) * MAX_PWM / (maxth - minth);
+        surge = (distance - MINTH) * MAX_PWM / (MAXTH - MINTH);
         yaw = MAX_PWM - surge;
         move_state = Move_Forward;
     }
@@ -245,18 +257,18 @@ char CircBufOut(CircBuf* cb){
 }
 
 void UARTTX(CircBuf* cb){
-    for (char i=0; i< cb->maxlen ; i++ ){
-        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
+    //for (char i=0; i< cb->maxlen ; i++ ){
+        while (!U2STAbits.UTXBF);  // Wait for UART2 transmit buffer to be empty
         U2TXREG = CircBufOut(&CirBufTx);
-    }
+    //}
 }
 
-void UARTRX(CircBuf* cb){
-    for (char i=0; i< cb->maxlen ; i++ ){
-        while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
-            CircBufIn(&CirBufRx, U2RXREG);
-    }
-}
+// void UARTRX(CircBuf* cb){
+//     for (char i=0; i< cb->maxlen ; i++ ){
+//         while (!U2STAbits.TRMT);  // Wait for UART2 transmit buffer to be empty
+//             CircBufIn(&CirBufRx, U2RXREG);
+//     }
+// }
 
 void __attribute__((__interrupt__, __auto_psv__)) _U2RXInterrupt() {
     IFS1bits.U2RXIF = 0; // Reset rx interrupt flag
@@ -289,16 +301,15 @@ void disCalc(){
     float volts = (read_value / 1023.0) * 3.3;
     distance = 2.34 - 4.74 * volts + 4.06 * volts * volts - 1.60 * volts * volts * volts + 0.24 * volts * volts * volts * volts;
     distance = distance * 100;
-
 }
 
 void batteryCalc(){
-    while (!AD1CON1bits.DONE); //  check beshe dorost add kardam ya na 
+    while (!AD1CON1bits.DONE);  
     int Data = ADC1BUF0; 
     int R4951 = 200, R54 = 100;
     float v = (Data / 1023.0) * 3.3;
     v = v * (R4951 + R54) / R54;
-    char buff[16];
+    char buff[13];
     sprintf(buff, "$MABTT,%.2f*\n", v);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);   
@@ -307,7 +318,7 @@ void batteryCalc(){
    // Function that setups the timer to count for the specified amount of ms
 void tmr_setup_period(int timer, int ms) {    
     uint32_t tcount;
-    tcount = (((FOSC / 2)/256)/1000.0)*ms - 1;
+    tcount = (((FOSC / 2)/256)/1000.0)*ms - 1; //256 in here is what we can call a prescaler
     if (timer == 1) {
         T1CONbits.TON = 0;      
         TMR1 = 0;               
@@ -322,13 +333,6 @@ void tmr_setup_period(int timer, int ms) {
         PR2 = tcount;       
         T2CONbits.TON = 1;       
     }
-    else if (timer == 3) {
-        T3CONbits.TON = 0;       
-        TMR3 = 0;                
-        T3CONbits.TCKPS = 0b11;   
-        PR3 = tcount;       
-        T3CONbits.TON = 1;      
-    }
 }
 
 // Function to wait for the completion of a timer period
@@ -341,10 +345,12 @@ void tmr_wait_period(int timer) {
         while(IFS0bits.T2IF == 0);
         IFS0bits.T2IF = 0; // Reset timer2 interrupt flag
     }
-    else if (timer == 3) {
-        while(IFS0bits.T3IF == 0);
-        IFS0bits.T3IF = 0; // Reset timer2 interrupt flag
-    }
+}
+
+// Function to wait for a specified number of milliseconds using a timer
+void tmr_wait_ms(int timer, int ms) {    
+    tmr_setup_period(timer, ms); 
+    tmr_wait_period(timer);     
 }
 
 void ledHandler (){
@@ -355,36 +361,36 @@ void ledHandler (){
     }
     else if(stateFlag == Moving){ 
        if(surge > 50){
-        //beam on
-        Led_Beam = 1;
-        Led_Brakes = 0;
-        Led_Low_Intensity = 0;
+            //beam on
+            Led_Beam = 1;
+            Led_Brakes = 0;
+            Led_Low_Intensity = 0;
+        }
+        else{
+            Led_Beam = 0;
+            Led_Brakes = 1;
+            Led_Low_Intensity = 1;
+            //breaks and low intensity on
+        }
+        if(yaw>15){
+            Led_Left = 0;
+            Led_rightflag =1;
+            //right blinks in 1hz and left is off
+        }
+        else {
+            Led_Left = 0; 
+            Led_Right = 0;
+            Led_rightflag = 0;
+            //right stops blinking
+        }
     }
-    else{
-        Led_Beam = 0;
-        Led_Brakes = 1;
-        Led_Low_Intensity = 1;
-        //breaks and low intensity on
-    }
-    if(yaw>15){
-        Led_Left = 0;
-        Led_rightflag =1;
-        //right blinks in 1hz and left is off
-    }
-    else {
-        Led_Left = 0; 
-        Led_Right = 0;
-        Led_rightflag = 0;
-        //right stops blinking
-    }
-   }
 }
 
 void led_blinker(){
     Led_A0 = !Led_A0;
     if(stateFlag == waitForStart){
         Led_Left = !Led_Left;
-       Led_Right = !Led_Right; 
+        Led_Right = !Led_Right; 
     }
     if(Led_rightflag && (stateFlag == Moving))
         Led_Right = !Led_Right; 
@@ -404,7 +410,7 @@ int parse_byte(parser_state* ps, char byte) {
                 ps->msg_type[ps->index_type] = '\0';
                 ps->index_payload = 0; // initialize properly the index
             } 
-            else if (ps->index_type == 6) { // error! 
+            else if (ps->index_type == 5) { // error! 
                 ps->state = STATE_DOLLAR;
                 ps->index_type = 0;
 			} 
@@ -438,18 +444,13 @@ int parse_byte(parser_state* ps, char byte) {
     return NO_MESSAGE;
 }
 
-// Function to wait for a specified number of milliseconds using a timer
-void tmr_wait_ms(int timer, int ms) {    
-    tmr_setup_period(timer, ms); 
-    tmr_wait_period(timer);     
-}
+
 
 void initTask_N(){
     schedInfo[0].N = 1;
-    schedInfo[1].N = 2000;
-    schedInfo[2].N = 1;
-    schedInfo[3].N = 100;
-    schedInfo[4].N = 1000; 
+    schedInfo[1].N = 2;
+    schedInfo[2].N = 100;
+    schedInfo[3].N = 1000; 
 }
 
 void scheduler() {
@@ -468,19 +469,16 @@ void scheduler() {
                     }
                     break;
                 case 1:
-                    
-                    break;
-                case 2:
                     UARTTX(&CirBufTx);
                     pbHandller();
                     ledHandler();
                     reciver();
                     break;   
-                case 3:
+                case 2:
                     sendDistUART();
                     sendDcUART();
                     break; 
-                case 4:
+                case 3:
                     led_blinker();
                     batteryCalc();
                     break;   
@@ -581,16 +579,15 @@ void setMotorsZero(){
 }
 
 void sendDistUART(){
-    char buff[16];
-    sprintf(buff, "$MDIST,%.2f*\n", distance);
+    char buff[12];
+    sprintf(buff, "$MDIST,%d*\n", distance);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);  
     }
 }
 
 void sendDcUART(){
-    
-    char buff[50];
+    char buff[19];
     sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dcUART[0],dcUART[1],dcUART[2],dcUART[3] );
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);  
@@ -598,11 +595,11 @@ void sendDcUART(){
 }
 
 void pcth(const char* msg){
-    minth = extract_integer(msg);
+    MINTH = extract_integer(msg);
     int i = next_value(msg, 0);
-    maxth = extract_integer(msg+i); 
+    MAXTH = extract_integer(msg+i); 
     char buff[40];
-    sprintf(buff, "$MAX TH :  %d  \n", maxth);
+    sprintf(buff, "$MAXTH :  %d  \n", MAXTH);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);   
     }
@@ -646,13 +643,18 @@ void reciver(){
                 if(strcmp(pstate.msg_type, "PCTH") ==0){ 
                     pcth(pstate.msg_payload);
                     char buff[40];
-                    sprintf(buff, "$PAYLOAD: %s \n %d   ,   %d  \n", pstate.msg_payload ,minth , maxth);
+                    sprintf(buff, "$PAYLOAD: %s \n %d   ,   %d  \n", pstate.msg_payload ,MINTH , MAXTH);
                     for (int i = 0; i < strlen(buff); i++) {
                         CircBufIn(&CirBufTx,buff[i]);
                     }
                 }
             }
     }
+}
+void parserinit(){
+    pstate.state = STATE_DOLLAR;
+    pstate.index_type = 0;
+    pstate.index_payload = 0;
 }
 
 int main() {
@@ -668,9 +670,7 @@ int main() {
     initPWM();
     setMotorsZero();
     tmr_setup_period(TIMER1,1);
-    pstate.state = STATE_DOLLAR;
-    pstate.index_type = 0;
-    pstate.index_payload = 0;
+    parserinit();
     while(1){
         scheduler();
         tmr_wait_period(TIMER1);
