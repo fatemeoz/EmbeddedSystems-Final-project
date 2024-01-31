@@ -64,7 +64,7 @@ int MAXTH = 60;
 int MAX_PWM = 100; // max duty cycle for PWM
 int surge,yaw, left_pwm , right_pwm;
 bool stateFlag = waitForStart;
-int distance = 0;
+float distance = 0;
 int ret;
 int dcUART[4];
 bool Led_rightflag = 0;
@@ -258,9 +258,9 @@ char CircBufOut(CircBuf* cb){
 
 void UARTTX(CircBuf* cb){
     //for (char i=0; i< cb->maxlen ; i++ ){
-        while (!U2STAbits.UTXBF);  // Wait for UART2 transmit buffer to be empty
+        while (U2STAbits.UTXBF);  // Wait for UART2 transmit buffer to be empty
         U2TXREG = CircBufOut(&CirBufTx);
-    //}
+   // }
 }
 
 // void UARTRX(CircBuf* cb){
@@ -309,7 +309,7 @@ void batteryCalc(){
     int R4951 = 200, R54 = 100;
     float v = (Data / 1023.0) * 3.3;
     v = v * (R4951 + R54) / R54;
-    char buff[13];
+    char buff[18];
     sprintf(buff, "$MABTT,%.2f*\n", v);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);   
@@ -469,8 +469,12 @@ void scheduler() {
                     }
                     break;
                 case 1:
-                    UARTTX(&CirBufTx);
+                  //  char temp=  CirBufTx.maxlen ;
+                   if(CirBufTx.maxlen != 0){
+                    UARTTX(&CirBufTx);}
+                    
                     pbHandller();
+                    
                     ledHandler();
                     reciver();
                     break;   
@@ -579,15 +583,15 @@ void setMotorsZero(){
 }
 
 void sendDistUART(){
-    char buff[12];
-    sprintf(buff, "$MDIST,%d*\n", distance);
+    char buff[17];
+    sprintf(buff, "$MDIST,%d*\n", (int)distance);
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);  
     }
 }
 
 void sendDcUART(){
-    char buff[19];
+    char buff[24];
     sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dcUART[0],dcUART[1],dcUART[2],dcUART[3] );
     for (int i = 0; i < strlen(buff); i++) {
         CircBufIn(&CirBufTx,buff[i]);  
