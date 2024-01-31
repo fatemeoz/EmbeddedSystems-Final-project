@@ -3,9 +3,8 @@
 //Authors: Fatemeh Ozgoli (5269981)
 //         Peyman Peyvandipour (5573284)
 //         Arghavan Dalvand (5606362)
-//January 2024
 //Professor: Enrico Simetti
-
+//January 2024
 
 
 #include <math.h>
@@ -387,7 +386,7 @@ void led_blinker(){
         Led_Left = !Led_Left;
        Led_Right = !Led_Right; 
     }
-    if(Led_rightflag)
+    if(Led_rightflag && (stateFlag == Moving))
         Led_Right = !Led_Right; 
 }
 
@@ -669,13 +668,9 @@ int main() {
     initPWM();
     setMotorsZero();
     tmr_setup_period(TIMER1,1);
-    
-
     pstate.state = STATE_DOLLAR;
     pstate.index_type = 0;
     pstate.index_payload = 0;
-
-
     while(1){
         scheduler();
         tmr_wait_period(TIMER1);
