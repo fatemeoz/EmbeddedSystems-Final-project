@@ -8,7 +8,7 @@
 #define TIMER1 1
 #define TIMER2 2
 #define FOSC 144000000
-#define buffsize 150
+#define buffsize 45
 #define MAX_TASKS 5
 #define PWM_FREQ 10000
 
@@ -25,12 +25,12 @@
 #define Move_Forward 0
 #define Move_Backward 1
 #define Spot_spin_clockwise 2
-#define Spot_spin_unclockwise 3
+#define Spot_spin_anticlockwise 3
 
-#define ocLB 1
-#define ocLF 2
-#define ocRB 3
-#define ocRF 4
+#define motorLB 1
+#define motorLF 2
+#define motorRB 3
+#define motorRF 4
 
 
 
@@ -40,13 +40,12 @@
 #define NEW_MESSAGE 1 // new message received and parsedcompletely
 #define NO_MESSAGE 0 // no new messages
 
-int minth = 35;
-int maxth = 60;
-int MAX_PWM = 100; // Maximum PWM value
-int surge, left_pwm , right_pwm;
-int yaw;
+int minth = 35; 
+int maxth = 60; 
+int MAX_PWM = 100; // max duty cycle for PWM
+int surge,yaw, left_pwm , right_pwm;
 bool stateFlag = waitForStart;
-double distance = 0;
+float distance = 0;
 int ret;
 int dcUART[4];
     
@@ -57,15 +56,14 @@ typedef struct {
     int tail;
     int maxlen;
 } CircBuf;
-
 CircBuf CirBufTx;
 CircBuf CirBufRx;
+
 
 typedef struct {
     int n;
     int N;
 } heartbeat;
-
 heartbeat schedInfo[MAX_TASKS];
 
 typedef struct{
@@ -76,6 +74,7 @@ typedef struct{
     int index_payload;
 } parser_state;
 parser_state  pstate ;
+
 void initializeBuff(CircBuf* cb){
     cb->head = 0; 
     cb->tail = 0;
@@ -84,8 +83,8 @@ void initializeBuff(CircBuf* cb){
 
 void initPins() {
     TRISAbits.TRISA0 = 0;
-    TRISGbits.TRISG9 = 0;
-    TRISEbits.TRISE8 = 1;
+    TRISEbits.TRISE8 = 1; 
+    
     TRISBbits.TRISB8 = 0; //LEFT
     TRISFbits.TRISF1 = 0; //RIGHT 
     TRISFbits.TRISF0 = 0; //RED
@@ -98,9 +97,10 @@ void initUART2() {
     U2BRG = (FOSC / 2) / (16L * baund) - 1;
     U2MODEbits.UARTEN = 1;  // enable UART2
     U2STAbits.UTXEN = 1;    // enable U2TX (must be after UARTEN)
+    
     // Remap UART2 pins
-    RPOR0bits.RP64R = 0x03;
-    RPINR19bits.U2RXR = 0x4B;
+    RPOR0bits.RP64R = 0x03; 
+    RPINR19bits.U2RXR = 0x4B; 
 }
 
 void initADC1() {
@@ -150,7 +150,7 @@ int calculateSurgeAndYaw() {
 
 // Modified controlMotors function
 void controlMotors() {
-    char move_state;
+    int move_state;
     move_state = calculateSurgeAndYaw();
     // Calculate left and right PWM values
     left_pwm = surge + yaw;
@@ -166,10 +166,10 @@ void controlMotors() {
     
     switch (move_state) {
         case Move_Forward:
-            setPWM( ocLB, 0);
-            setPWM( ocLF, left_pwm);
-            setPWM( ocRB, 0);
-            setPWM( ocRF, right_pwm);
+            setPWM( motorLB, 0);
+            setPWM( motorLF, left_pwm);
+            setPWM( motorRB, 0);
+            setPWM( motorRF, right_pwm);
             
             dcUART[0]= 0;
             dcUART[1]= left_pwm;
@@ -177,10 +177,10 @@ void controlMotors() {
             dcUART[3]= right_pwm;
             break;
         case Move_Backward:
-            setPWM( ocLB, left_pwm);
-            setPWM( ocLF, 0);
-            setPWM( ocRB, right_pwm);
-            setPWM( ocRF, 0);
+            setPWM( motorLB, left_pwm);
+            setPWM( motorLF, 0);
+            setPWM( motorRB, right_pwm);
+            setPWM( motorRF, 0);
             
             dcUART[0]= left_pwm;
             dcUART[1]= 0;
@@ -188,21 +188,21 @@ void controlMotors() {
             dcUART[3]= 0;
             break;
         case Spot_spin_clockwise:
-            setPWM( ocLB,  0);
-            setPWM( ocLF,  left_pwm);
-            setPWM( ocRB,  right_pwm);
-            setPWM( ocRF,  0);
+            setPWM( motorLB,  0);
+            setPWM( motorLF,  left_pwm);
+            setPWM( motorRB,  right_pwm);
+            setPWM( motorRF,  0);
             
             dcUART[0]= 0;
             dcUART[1]= left_pwm;
             dcUART[2]= right_pwm;
             dcUART[3]= 0;
             break;
-        case Spot_spin_unclockwise:
-            setPWM( ocLB,  left_pwm);
-            setPWM( ocLF,  0);
-            setPWM( ocRB,  0);
-            setPWM( ocRF,  right_pwm);
+        case Spot_spin_anticlockwise:
+            setPWM( motorLB,  left_pwm);
+            setPWM( motorLF,  0);
+            setPWM( motorRB,  0);
+            setPWM( motorRF,  right_pwm);
             
             dcUART[0]= left_pwm;
             dcUART[2]= 0;
@@ -210,8 +210,7 @@ void controlMotors() {
             dcUART[4]= right_pwm;
             break;
     } 
-    // Set PWM to motors (functionality to be implemented based on your hardware)
-    // setMotorPWM(left_pwm, right_pwm);
+
 }
 
 int isFull(const CircBuf* cb) {
@@ -277,20 +276,20 @@ void pbHandller(){
 }
 
 void disCalc(){
-    double read_value;
     while (!AD1CON1bits.DONE);
     // Read from sensor
-    read_value = ADC1BUF1;
-    double volts = (read_value / 1023.0) * 3.3;
+    int read_value = ADC1BUF1;
+    float volts = (read_value / 1023.0) * 3.3;
     distance = 2.34 - 4.74 * volts + 4.06 * volts * volts - 1.60 * volts * volts * volts + 0.24 * volts * volts * volts * volts;
     distance = distance * 100;
 
 }
 
 void batteryCalc(){
-    double Data = ADC1BUF0; 
+    while (!AD1CON1bits.DONE); //  check beshe dorost add kardam ya na 
+    int Data = ADC1BUF0; 
     int R4951 = 200, R54 = 100;
-    double v = (Data / 1023.0) * 3.3;
+    float v = (Data / 1023.0) * 3.3;
     v = v * (R4951 + R54) / R54;
     char buff[16];
     sprintf(buff, "$MABTT,%.2f*\n", v);
@@ -546,16 +545,16 @@ void initPWM(){
 
 void setPWM(int ocNumber, int dc){
     switch (ocNumber){
-        case ocLB:
+        case motorLB:
             OC1R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
-        case ocLF:    
+        case motorLF:    
             OC2R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
-        case ocRB:  
+        case motorRB:  
             OC3R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
-        case ocRF:  
+        case motorRF:  
             OC4R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
             break;
         }
@@ -563,10 +562,10 @@ void setPWM(int ocNumber, int dc){
 }
 
 void setMotorsZero(){
-    setPWM(ocLB,0);
-    setPWM(ocLF,0);
-    setPWM(ocRB,0);
-    setPWM(ocRF,0);
+    setPWM(motorLB,0);
+    setPWM(motorLF,0);
+    setPWM(motorRB,0);
+    setPWM(motorRF,0);
     
     dcUART[0]= 0;
     dcUART[1]= 0;
