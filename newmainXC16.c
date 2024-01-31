@@ -1,3 +1,13 @@
+
+//Course: Embedded Systems 
+//Authors: Fatemeh Ozgoli (5269981)
+//         Peyman Peyvandipour (5573284)
+//         Arghavan Dalvand (5606362)
+//January 2024
+//Professor: Enrico Simetti
+
+
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,8 +42,6 @@
 #define motorRB 3
 #define motorRF 4
 
-
-
 #define STATE_DOLLAR  1 // we discard everything until a dollaris found
 #define STATE_TYPE    2 // we are reading the type of msg untila comma is found
 #define STATE_PAYLOAD 3 // we read the payload until an asterixis found
@@ -48,7 +56,7 @@ bool stateFlag = waitForStart;
 float distance = 0;
 int ret;
 int dcUART[4];
-    
+bool Led_rightflag = 0;
 
 typedef struct {
     char buff[buffsize];
@@ -344,6 +352,7 @@ void ledHandler (){
     if(stateFlag == waitForStart){
         Led_Beam = 0; 
         Led_Low_Intensity = 0;
+        Led_Brakes = 0;
     }
     else if(stateFlag == Moving){ 
        if(surge > 50){
@@ -360,12 +369,13 @@ void ledHandler (){
     }
     if(yaw>15){
         Led_Left = 0;
-        
+        Led_rightflag =1;
         //right blinks in 1hz and left is off
     }
     else {
         Led_Left = 0; 
         Led_Right = 0;
+        Led_rightflag = 0;
         //right stops blinking
     }
    }
@@ -377,10 +387,8 @@ void led_blinker(){
         Led_Left = !Led_Left;
        Led_Right = !Led_Right; 
     }
-    if(yaw>15) 
-         Led_Right = !Led_Right;
-    else if (stateFlag == Moving)
-         Led_Right = 0; 
+    if(Led_rightflag)
+        Led_Right = !Led_Right; 
 }
 
 int parse_byte(parser_state* ps, char byte) {
