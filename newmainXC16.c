@@ -146,6 +146,134 @@ void initADC1() {
     LATAbits.LATA3 = 1;
 }
 
+
+void initInterrupt(){
+    IEC1bits.U2RXIE = 1;  // enable interrupt rx
+    U2STAbits.URXISEL = 1; // UART2 interrupt mode (1: every char received, 2: 3/4 char buffer, 3: full)  
+}
+
+void initPWM(){
+    TRISDbits.TRISD1 = 0;
+    TRISDbits.TRISD2 = 0;
+    TRISDbits.TRISD3 = 0;
+    TRISDbits.TRISD4 = 0;
+     //Remap the pins
+    RPOR0bits.RP65R = 0b010000;   //OC1
+    RPOR1bits.RP66R = 0b010001;   //OC2
+    RPOR1bits.RP67R = 0b010010;   //OC3
+    RPOR2bits.RP68R = 0b010011;   //OC4 
+    //Configure the Left Wheels
+    //Clear all the contents of two control registers
+    OC1CON1 = 0x0000;
+    OC1CON2 = 0x0000;
+    //Set the peripheral clock as source for the OCx module
+    OC1CON1bits.OCTSEL = 0b111;
+    //Sets the OC modality to Edge-Aligned PWM mode
+    OC1CON1bits.OCM = 0b110;
+    //Sets the synchronization source for the OCx module to No Sync
+    OC1CON2bits.SYNCSEL = 0x1F; 
+    //Clear all the contents of two control registers
+    OC2CON1 = 0x0000;
+    OC2CON2 = 0x0000;
+    //Set the peripheral clock as source for the OCx module
+    OC2CON1bits.OCTSEL = 0b111;
+    //Sets the OC modality to Edge-Aligned PWM mode
+    OC2CON1bits.OCM = 0b110;
+    //Sets the synchronization source for the OCx module to No Sync
+    OC2CON2bits.SYNCSEL = 0x1F; 
+    //Configure the Right Wheels
+    //Clear all the contents of two control registers
+    OC3CON1 = 0x0000;
+    OC3CON2 = 0x0000;
+    //Set the peripheral clock as source for the OCx module
+    OC3CON1bits.OCTSEL = 0b111;
+    //Sets the OC modality to Edge-Aligned PWM mode
+    OC3CON1bits.OCM = 0b110;
+    //Sets the synchronization source for the OCx module to No Sync
+    OC3CON2bits.SYNCSEL = 0x1F; 
+    //Clear all the contents of two control registers
+    OC4CON1 = 0x0000;
+    OC4CON2 = 0x0000;
+    //Set the peripheral clock as source for the OCx module
+    OC4CON1bits.OCTSEL = 0b111;
+    //Sets the OC modality to Edge-Aligned PWM mode
+    OC4CON1bits.OCM = 0b110;
+    //Sets the synchronization source for the OCx module to No Sync
+    OC4CON2bits.SYNCSEL = 0x1F;
+    OC1RS = 144000000/PWM_FREQ; //Set the PWM frequency 
+    OC2RS = 144000000/PWM_FREQ; //Set the PWM frequency 
+    OC3RS = 144000000/PWM_FREQ; //Set the PWM frequency 
+    OC4RS = 144000000/PWM_FREQ; //Set the PWM frequency 
+}
+
+void setPWM(int ocNumber, int dc){
+    switch (ocNumber){
+        case motorLB:
+            OC1R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
+            break;
+        case motorLF:    
+            OC2R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
+            break;
+        case motorRB:  
+            OC3R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
+            break;
+        case motorRF:  
+            OC4R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
+            break;
+        }
+    
+}
+
+void setMotorsZero(){
+    setPWM(motorLB,0);
+    setPWM(motorLF,0);
+    setPWM(motorRB,0);
+    setPWM(motorRF,0);
+    
+    dcUART[0]= 0;
+    dcUART[1]= 0;
+    dcUART[2]= 0;
+    dcUART[3]= 0;
+}
+
+   // Function that setups the timer to count for the specified amount of ms
+void tmr_setup_period(int timer, int ms) {    
+    uint32_t tcount;
+    tcount = (((FOSC / 2)/256)/1000.0)*ms - 1; //256 in here is what we can call a prescaler
+    if (timer == 1) {
+        T1CONbits.TON = 0;      
+        TMR1 = 0;               
+        T1CONbits.TCKPS = 0b11;   
+        PR1 = tcount;      
+        T1CONbits.TON = 1;  
+    }   
+    else if (timer == 2) {
+        T2CONbits.TON = 0;       
+        TMR2 = 0;               
+        T2CONbits.TCKPS = 0b11;    
+        PR2 = tcount;       
+        T2CONbits.TON = 1;       
+    }
+}
+
+// Function to wait for the completion of a timer period
+void tmr_wait_period(int timer) { 
+    if (timer == 1) {
+        while(IFS0bits.T1IF == 0);
+        IFS0bits.T1IF = 0; // Reset timer1 interrupt flag
+    }
+    else if (timer == 2) {
+        while(IFS0bits.T2IF == 0);
+        IFS0bits.T2IF = 0; // Reset timer2 interrupt flag
+    }
+}
+
+// Function to wait for a specified number of milliseconds using a timer
+void tmr_wait_ms(int timer, int ms) {    
+    tmr_setup_period(timer, ms); 
+    tmr_wait_period(timer);     
+}
+
 // Function to calculate surge and yaw based on distance
 int calculateSurgeAndYaw() {
     int move_state;
@@ -307,7 +435,7 @@ void batteryCalc(){
     while (!AD1CON1bits.DONE);  
     int Data = ADC1BUF0; 
     int R4951 = 200, R54 = 100;
-    float v = (Data / 1023.0) * 3.3;
+    double v = (Data / 1023.0) * 3.3;
     v = v * (R4951 + R54) / R54;
     char buff[18];
     sprintf(buff, "$MABTT,%.2f*\n", v);
@@ -315,43 +443,7 @@ void batteryCalc(){
         CircBufIn(&CirBufTx,buff[i]);   
     }
 }
-   // Function that setups the timer to count for the specified amount of ms
-void tmr_setup_period(int timer, int ms) {    
-    uint32_t tcount;
-    tcount = (((FOSC / 2)/256)/1000.0)*ms - 1; //256 in here is what we can call a prescaler
-    if (timer == 1) {
-        T1CONbits.TON = 0;      
-        TMR1 = 0;               
-        T1CONbits.TCKPS = 0b11;   
-        PR1 = tcount;      
-        T1CONbits.TON = 1;  
-    }   
-    else if (timer == 2) {
-        T2CONbits.TON = 0;       
-        TMR2 = 0;               
-        T2CONbits.TCKPS = 0b11;    
-        PR2 = tcount;       
-        T2CONbits.TON = 1;       
-    }
-}
 
-// Function to wait for the completion of a timer period
-void tmr_wait_period(int timer) { 
-    if (timer == 1) {
-        while(IFS0bits.T1IF == 0);
-        IFS0bits.T1IF = 0; // Reset timer1 interrupt flag
-    }
-    else if (timer == 2) {
-        while(IFS0bits.T2IF == 0);
-        IFS0bits.T2IF = 0; // Reset timer2 interrupt flag
-    }
-}
-
-// Function to wait for a specified number of milliseconds using a timer
-void tmr_wait_ms(int timer, int ms) {    
-    tmr_setup_period(timer, ms); 
-    tmr_wait_period(timer);     
-}
 
 void ledHandler (){
     if(stateFlag == waitForStart){
@@ -446,9 +538,95 @@ int parse_byte(parser_state* ps, char byte) {
 
 
 
+void sendDistUART(){
+    char buff[17];
+    sprintf(buff, "$MDIST,%d*\n", (int)distance);
+    for (int i = 0; i < strlen(buff); i++) {
+        CircBufIn(&CirBufTx,buff[i]);  
+    }
+}
+
+void sendDcUART(){
+    char buff[24];
+    sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dcUART[0],dcUART[1],dcUART[2],dcUART[3] );
+    for (int i = 0; i < strlen(buff); i++) {
+        CircBufIn(&CirBufTx,buff[i]);  
+    }
+}
+
+
+
+int extract_integer(const char* str) {
+    int i = 0, number = 0, sign = 1;
+    if (str[i] == '-') {
+        sign = -1;
+        i++;
+    }
+    else if (str[i] == '+') {
+        sign = 1;
+        i++;
+    }
+    while (str[i] != ',' && str[i] != '\0') {
+        number *= 10; // multiply the current number by 10;
+        number += str[i] - '0'; // converting character to decimal
+        i++;
+    }
+    return sign*number;
+}
+
+int next_value(const char* msg, int i) {
+    while (msg[i] != ',' && msg[i] != '\0') { i++; }
+        if (msg[i] == ',')
+            i++;
+    return i;
+}
+
+void pcth(const char* msg){
+    int newMINTH = extract_integer(msg);
+    int i = next_value(msg, 0);
+    int newMAXTH = extract_integer(msg+i); 
+    if (newMINTH < newMAXTH){
+        MINTH = newMINTH;
+        MAXTH = newMAXTH;
+    }
+    char buff[40];
+    sprintf(buff, "$MAXTH :  %d  \n", MAXTH);
+    for (int i = 0; i < strlen(buff); i++) {
+        CircBufIn(&CirBufTx,buff[i]);   
+    }
+}
+
+void reciver(){
+    if(CirBufRx.maxlen > 0){
+            ret = parse_byte(&pstate,CircBufOut(&CirBufRx));
+            if(ret == NEW_MESSAGE){
+                char buff[40];
+                sprintf(buff, "$PAYLOAD2: %s \n", pstate.msg_type);
+                for (int i = 0; i < strlen(buff); i++) {
+                    CircBufIn(&CirBufTx,buff[i]);
+                }
+                if(strcmp(pstate.msg_type, "PCTH") ==0){ 
+                    pcth(pstate.msg_payload);
+                    char buff[40];
+                    sprintf(buff, "$PAYLOAD: %s \n %d   ,   %d  \n", pstate.msg_payload ,MINTH , MAXTH);
+                    for (int i = 0; i < strlen(buff); i++) {
+                        CircBufIn(&CirBufTx,buff[i]);
+                    }
+                }
+            }
+    }
+}
+void parserinit(){
+    pstate.state = STATE_DOLLAR;
+    pstate.index_type = 0;
+    pstate.index_payload = 0;
+}
+
+
+
 void initTask_N(){
     schedInfo[0].N = 1;
-    schedInfo[1].N = 2;
+    schedInfo[1].N = 1;
     schedInfo[2].N = 100;
     schedInfo[3].N = 1000; 
 }
@@ -493,173 +671,6 @@ void scheduler() {
     }
 }
 
-void initInterrupt(){
-    IEC1bits.U2RXIE = 1;  // enable interrupt rx
-    U2STAbits.URXISEL = 1; // UART2 interrupt mode (1: every char received, 2: 3/4 char buffer, 3: full)  
-}
-
-void initPWM(){
-    TRISDbits.TRISD1 = 0;
-    TRISDbits.TRISD2 = 0;
-    TRISDbits.TRISD3 = 0;
-    TRISDbits.TRISD4 = 0;
-     //Remap the pins
-    RPOR0bits.RP65R = 0b010000;   //OC1
-    RPOR1bits.RP66R = 0b010001;   //OC2
-    RPOR1bits.RP67R = 0b010010;   //OC3
-    RPOR2bits.RP68R = 0b010011;   //OC4 
-    //Configure the Left Wheels
-    //Clear all the contents of two control registers
-    OC1CON1 = 0x0000;
-    OC1CON2 = 0x0000;
-    //Set the peripheral clock as source for the OCx module
-    OC1CON1bits.OCTSEL = 0b111;
-    //Sets the OC modality to Edge-Aligned PWM mode
-    OC1CON1bits.OCM = 0b110;
-    //Sets the synchronization source for the OCx module to No Sync
-    OC1CON2bits.SYNCSEL = 0x1F; 
-    //Clear all the contents of two control registers
-    OC2CON1 = 0x0000;
-    OC2CON2 = 0x0000;
-    //Set the peripheral clock as source for the OCx module
-    OC2CON1bits.OCTSEL = 0b111;
-    //Sets the OC modality to Edge-Aligned PWM mode
-    OC2CON1bits.OCM = 0b110;
-    //Sets the synchronization source for the OCx module to No Sync
-    OC2CON2bits.SYNCSEL = 0x1F; 
-    //Configure the Right Wheels
-    //Clear all the contents of two control registers
-    OC3CON1 = 0x0000;
-    OC3CON2 = 0x0000;
-    //Set the peripheral clock as source for the OCx module
-    OC3CON1bits.OCTSEL = 0b111;
-    //Sets the OC modality to Edge-Aligned PWM mode
-    OC3CON1bits.OCM = 0b110;
-    //Sets the synchronization source for the OCx module to No Sync
-    OC3CON2bits.SYNCSEL = 0x1F; 
-    //Clear all the contents of two control registers
-    OC4CON1 = 0x0000;
-    OC4CON2 = 0x0000;
-    //Set the peripheral clock as source for the OCx module
-    OC4CON1bits.OCTSEL = 0b111;
-    //Sets the OC modality to Edge-Aligned PWM mode
-    OC4CON1bits.OCM = 0b110;
-    //Sets the synchronization source for the OCx module to No Sync
-    OC4CON2bits.SYNCSEL = 0x1F;
-    OC1RS = 144000000/PWM_FREQ; //Set the PWM frequency 
-    OC2RS = 144000000/PWM_FREQ; //Set the PWM frequency 
-    OC3RS = 144000000/PWM_FREQ; //Set the PWM frequency 
-    OC4RS = 144000000/PWM_FREQ; //Set the PWM frequency 
-}
-
-void setPWM(int ocNumber, int dc){
-    switch (ocNumber){
-        case motorLB:
-            OC1R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
-            break;
-        case motorLF:    
-            OC2R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
-            break;
-        case motorRB:  
-            OC3R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
-            break;
-        case motorRF:  
-            OC4R = (int)((144000000/PWM_FREQ) * (dc/100.0)); //Set the PWM Duty Cycle
-            break;
-        }
-    
-}
-
-void setMotorsZero(){
-    setPWM(motorLB,0);
-    setPWM(motorLF,0);
-    setPWM(motorRB,0);
-    setPWM(motorRF,0);
-    
-    dcUART[0]= 0;
-    dcUART[1]= 0;
-    dcUART[2]= 0;
-    dcUART[3]= 0;
-}
-
-void sendDistUART(){
-    char buff[17];
-    sprintf(buff, "$MDIST,%d*\n", (int)distance);
-    for (int i = 0; i < strlen(buff); i++) {
-        CircBufIn(&CirBufTx,buff[i]);  
-    }
-}
-
-void sendDcUART(){
-    char buff[24];
-    sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dcUART[0],dcUART[1],dcUART[2],dcUART[3] );
-    for (int i = 0; i < strlen(buff); i++) {
-        CircBufIn(&CirBufTx,buff[i]);  
-    }
-}
-
-void pcth(const char* msg){
-    MINTH = extract_integer(msg);
-    int i = next_value(msg, 0);
-    MAXTH = extract_integer(msg+i); 
-    char buff[40];
-    sprintf(buff, "$MAXTH :  %d  \n", MAXTH);
-    for (int i = 0; i < strlen(buff); i++) {
-        CircBufIn(&CirBufTx,buff[i]);   
-    }
-}
-
-int extract_integer(const char* str) {
-    int i = 0, number = 0, sign = 1;
-    if (str[i] == '-') {
-        sign = -1;
-        i++;
-    }
-    else if (str[i] == '+') {
-        sign = 1;
-        i++;
-    }
-    while (str[i] != ',' && str[i] != '\0') {
-        number *= 10; // multiply the current number by 10;
-        number += str[i] - '0'; // converting character to decimal
-        number;
-        i++;
-    }
-    return sign*number;
-}
-
-int next_value(const char* msg, int i) {
-    while (msg[i] != ',' && msg[i] != '\0') { i++; }
-        if (msg[i] == ',')
-            i++;
-    return i;
-}
-
-void reciver(){
-    if(CirBufRx.maxlen > 0){
-            ret = parse_byte(&pstate,CircBufOut(&CirBufRx));
-            if(ret == NEW_MESSAGE){
-                char buff[40];
-                sprintf(buff, "$PAYLOAD2: %s \n", pstate.msg_type);
-                for (int i = 0; i < strlen(buff); i++) {
-                    CircBufIn(&CirBufTx,buff[i]);
-                }
-                if(strcmp(pstate.msg_type, "PCTH") ==0){ 
-                    pcth(pstate.msg_payload);
-                    char buff[40];
-                    sprintf(buff, "$PAYLOAD: %s \n %d   ,   %d  \n", pstate.msg_payload ,MINTH , MAXTH);
-                    for (int i = 0; i < strlen(buff); i++) {
-                        CircBufIn(&CirBufTx,buff[i]);
-                    }
-                }
-            }
-    }
-}
-void parserinit(){
-    pstate.state = STATE_DOLLAR;
-    pstate.index_type = 0;
-    pstate.index_payload = 0;
-}
 
 int main() {
     ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000;
