@@ -62,7 +62,6 @@ int MAX_PWM = 100; // max duty cycle for PWM
 int surge, yaw, left_pwm, right_pwm;
 bool stateFlag = waitForStart; // flag to detect the situation of the robot (moving, waiting for start)
 float distance = 0;
-//int ret; // return value of the parser
 int dcUART[4];
 bool Led_rightflag = 0;
 // Circular buffer definition
@@ -87,7 +86,7 @@ heartbeat schedInfo[MAX_TASKS];
 typedef struct
 {
     int state;
-    char msg_type[5];     // type is 5 chars + string terminator
+    char msg_type[5];     // type is 4 chars + string terminator
     char msg_payload[10]; // assume payload cannot be longer than 10 chars
     int index_type;
     int index_payload;
@@ -846,6 +845,9 @@ void scheduler()
                 batteryCalc();
                 break;
             case 3: // 500 Hz
+            
+                    // Send the data through UART with baud rate of 9600. sendig each byte datta approximately takes 1.04 ms.
+                    // So, it is guaranteed that one byte of data will be transmitted every 2 ms.
                 if (CirBufTx.maxlen != 0)
                 {
                     UARTTX(&CirBufTx);
