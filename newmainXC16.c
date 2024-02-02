@@ -43,7 +43,6 @@ Course: Embedded Systems
 #define Led_Low_Intensity LATGbits.LATG1
 #define Led_Beam LATAbits.LATA7
 #define Led_A0 LATAbits.LATA0
-
 // Motors definition
 #define motorLB 1
 #define motorLF 2
@@ -62,7 +61,7 @@ int MAX_PWM = 100; // max duty cycle for PWM
 int surge, yaw, left_pwm, right_pwm;
 bool stateFlag = waitForStart; // flag to detect the situation of the robot (moving, waiting for start)
 float distance = 0;
-int ret;
+int ret; // return value of the parser
 int dcUART[4];
 bool Led_rightflag = 0;
 // Circular buffer definition
@@ -93,6 +92,137 @@ typedef struct
     int index_payload;
 } parser_state;
 parser_state pstate;
+
+// Function prototypes
+void initializeBuff(CircBuf *cb);
+
+// Initialize LEDs, buttons
+void initPins();
+
+// Initialize UART2
+void initUART2();
+
+// Initialize ADC1
+void initADC1();
+
+// Initialize UART2 interrupt
+void initInterrupt();
+
+// Initialize PWM
+void initPWM();
+
+// Function to set the PWM duty cycle
+void setPWM(int ocNumber, int dc);
+
+//  Function to set all motors to zero
+void setMotorsZero();
+
+
+// Function that setups the timer to count for the specified amount of ms
+void tmr_setup_period(int timer, int ms);
+
+// Function to wait for the completion of a timer period
+void tmr_wait_period(int timer);
+
+// Function to wait for a specified number of milliseconds using a timer
+void tmr_wait_ms(int timer, int ms);
+
+// Function to calculate surge and yaw based on distance
+void calculateSurgeAndYaw();
+
+// Modified controlMotors function
+void controlMotors();
+
+// Function to check if the buffer is empty
+int isFull(const CircBuf *cb);
+
+// Function to put a value in the buffer
+int CircBufIn(CircBuf *cb, char value);
+
+// Function to extract a value from the buffer
+char CircBufOut(CircBuf *cb);
+
+// Function to send data through UART2
+void UARTTX(CircBuf *cb);
+
+// UART2 receive interrupt handler
+void __attribute__((__interrupt__, __auto_psv__)) _U2RXInterrupt();
+
+
+// Timer2 interrupt handler
+void __attribute__((__interrupt__, __auto_psv__)) _T2Interrupt();
+
+
+// Push button handler
+void pbHandller();
+
+// Function to calculate the distance from the IR sensor
+void disCalc();
+
+// Function to calculate the battery voltage
+void batteryCalc();
+
+// Function to handle the LEDs
+void ledHandler();
+
+// Function to blink the LEDs
+void led_blinker();
+
+// Parser function
+int parse_byte(parser_state *ps, char byte);
+
+// Function to send the distance through UART2
+void sendDistUART();
+
+// Function to send the duty cycle through UART2
+void sendDcUART();
+
+// Function to return the integer from the message sent from the PC
+int extract_integer(const char *str);
+
+// Function to return the next value from the message sent from the PC
+int next_value(const char *msg, int i);
+
+// Function to handle the PCTH message sent from the PC
+void pcth(const char *msg);
+
+// Function to check the massage sent from the PC and detect the command
+void reciver();
+
+// Function to initialize the parser
+void parserinit();
+
+// Function to initialize the N of the tasks
+void initTask_N();
+
+// Scheduler function to handle all the tasks needed in the project
+void scheduler();
+
+int main()
+{
+    ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000; // Disable analog pins
+    initializeBuff(&CirBufTx); // Initialize the circular buffer
+    initializeBuff(&CirBufRx); // Initialize the circular buffer
+    initUART2(); // Initialize UART2
+    initADC1(); // Initialize ADC1
+    initPins(); // Initialize pins
+    initPWM();  // Initialize PWM
+    initTask_N(); // Initialize the N of the tasks
+    initInterrupt(); // Initialize the interrupt
+    initPWM(); // Initialize PWM
+    setMotorsZero(); // Set all motors to zero
+    tmr_setup_period(TIMER1, 1);  // Setup timer1 to count for 1 ms
+    parserinit(); // Initialize the parser
+    while (1)
+    {
+        scheduler();  // Call the scheduler
+        tmr_wait_period(TIMER1); // Wait for the timer to finish
+    }
+    return 0;
+}
+
+
+
 // Function prototypes
 void initializeBuff(CircBuf *cb)
 {
@@ -723,27 +853,4 @@ void scheduler()
             schedInfo[i].n = 0; // Reset the counter
         }
     }
-}
-
-int main()
-{
-    ANSELA = ANSELB = ANSELC = ANSELD = ANSELE = ANSELG = 0x0000; // Disable analog pins
-    initializeBuff(&CirBufTx); // Initialize the circular buffer
-    initializeBuff(&CirBufRx); // Initialize the circular buffer
-    initUART2(); // Initialize UART2
-    initADC1(); // Initialize ADC1
-    initPins(); // Initialize pins
-    initPWM();  // Initialize PWM
-    initTask_N(); // Initialize the N of the tasks
-    initInterrupt(); // Initialize the interrupt
-    initPWM(); // Initialize PWM
-    setMotorsZero(); // Set all motors to zero
-    tmr_setup_period(TIMER1, 1);  // Setup timer1 to count for 1 ms
-    parserinit(); // Initialize the parser
-    while (1)
-    {
-        scheduler();  // Call the scheduler
-        tmr_wait_period(TIMER1); // Wait for the timer to finish
-    }
-    return 0;
 }
