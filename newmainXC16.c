@@ -29,7 +29,7 @@ Course: Embedded Systems
  we have data, and then, the next streams of data will be in the next 100 ms. So it's enough to have a buffer
  who has 45 bits. because the data exists in the buffer already, is the data that we dont need anymore.
 */
-#define buffsize 45
+#define buffsize 41
 #define MAX_TASKS 4
 #define PWM_FREQ 10000
 
@@ -61,7 +61,7 @@ int MAX_PWM = 100; // max duty cycle for PWM
 int surge, yaw, left_pwm, right_pwm;
 bool stateFlag = waitForStart; // flag to detect the situation of the robot (moving, waiting for start)
 float distance = 0;
-int ret; // return value of the parser
+//int ret; // return value of the parser
 int dcUART[4];
 bool Led_rightflag = 0;
 // Circular buffer definition
@@ -455,6 +455,7 @@ void controlMotors()
     // Calculate left and right PWM values
     left_pwm = surge + yaw;
     right_pwm = surge - yaw;
+
     // Scale PWM values if they exceed MAX_PWM
     int max_val = (abs(left_pwm) > abs(right_pwm)) ? abs(left_pwm) : abs(right_pwm); // max value between left and right
     if (max_val > MAX_PWM)
@@ -462,6 +463,7 @@ void controlMotors()
         left_pwm = left_pwm * MAX_PWM / max_val;
         right_pwm = right_pwm * MAX_PWM / max_val;
     }
+
     // Set PWM values
     if (left_pwm > 0)
     {
@@ -548,13 +550,13 @@ void __attribute__((__interrupt__, __auto_psv__)) _U2RXInterrupt()
 void __attribute__((__interrupt__, __auto_psv__)) _T2Interrupt()
 {
     T2CONbits.TON = 0; // stop timer2
-    IFS0bits.T2IF = 0; // reset the flag
+    IFS0bits.T2IF = 0; // reset timer2 interrupt flag
     TMR2 = 0x00;       // reset timer2
     if (PORTEbits.RE8 == 0x01)
     {
-        stateFlag = !stateFlag; // flag to avoid doing too many things in the interrupt
+        stateFlag = !stateFlag; // Change the state of the robot
     }
-    IEC0bits.T2IE = 0x00;
+    IEC0bits.T2IE = 0x00; // disable timer2 interrupt
 }
 
 // Push button handler
@@ -571,8 +573,7 @@ void pbHandller()
 // Function to calculate the distance from the IR sensor
 void disCalc()
 {
-    while (!AD1CON1bits.DONE)
-        ;
+    while (!AD1CON1bits.DONE); // Wait for ADC conversion to finish
     // Read from sensor
     int read_value = ADC1BUF1;
     float volts = (read_value / 1023.0) * 3.3;
@@ -591,7 +592,7 @@ void batteryCalc()
     v = v * (R4951 + R54) / R54;
     // Battery voltage in command format
     char buff[18];
-    sprintf(buff, "$MABTT,%.2f*\n", v);
+    sprintf(buff, "$MABTT,%.2f*", v);
     for (int i = 0; i < strlen(buff); i++)
     {
         CircBufIn(&CirBufTx, buff[i]); // put the data in the circular buffer
@@ -711,7 +712,7 @@ int parse_byte(parser_state *ps, char byte)
 void sendDistUART()
 {
     char buff[17];
-    sprintf(buff, "$MDIST,%d*\n", (int)distance); // Sending the distance in desired format
+    sprintf(buff, "$MDIST,%d*", (int)distance); // Sending the distance in desired format
     for (int i = 0; i < strlen(buff); i++)
     {
         CircBufIn(&CirBufTx, buff[i]); // put the data in the circular buffer
@@ -722,7 +723,7 @@ void sendDistUART()
 void sendDcUART()
 {
     char buff[24];
-    sprintf(buff, "$MPWM,%d,%d,%d,%d*\n", dcUART[0], dcUART[1], dcUART[2], dcUART[3]); // Sending the duty cycle in desired format
+    sprintf(buff, "$MPWM,%d,%d,%d,%d*", dcUART[0], dcUART[1], dcUART[2], dcUART[3]); // Sending the duty cycle in desired format
     for (int i = 0; i < strlen(buff); i++)
     {
         CircBufIn(&CirBufTx, buff[i]); // put the data in the circular buffer
@@ -782,7 +783,7 @@ void reciver()
 {
     if (CirBufRx.maxlen > 0)
     {
-        ret = parse_byte(&pstate, CircBufOut(&CirBufRx)); // parse the byte
+       int ret = parse_byte(&pstate, CircBufOut(&CirBufRx)); // parse the byte
         if (ret == NEW_MESSAGE)
         {
             if (strcmp(pstate.msg_type, "PCTH") == 0)
@@ -804,10 +805,10 @@ void parserinit()
 // Function to initialize the N of the tasks
 void initTask_N()
 {
-    schedInfo[0].N = 1;
-    schedInfo[1].N = 100;
-    schedInfo[2].N = 1000;
-    schedInfo[3].N = 2;
+    schedInfo[0].N = 1; // 1 KHz
+    schedInfo[1].N = 100; // 10 Hz
+    schedInfo[2].N = 1000; // 1 Hz
+    schedInfo[3].N = 2; // 500 Hz
 }
 
 // Scheduler function to handle all the tasks needed in the project
