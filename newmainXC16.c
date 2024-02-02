@@ -16,18 +16,19 @@ Course: Embedded Systems
 #define TIMER1 1
 #define TIMER2 2
 #define FOSC 144000000
+
 /*
- Data of the battery : 12 bytes
+ Data logging  through UART:
+ 
+ Data of the battery: 12 bytes
  Data of the distance: 11 bytes
  Data of the duty cycle: 18 bytes
  Battery frequency: 1hz
  Distance frequency: 10hz
  duty cycle frequency: 10hz
- all together, we will have 31 bytes of data, they would be written in the buffer with 2 different
- frequencys, considering the fact that every packet would includes 2 extra bits for start and stop,
- we can say that in every second, 960 byte can be sent. So, in a 100 ms, we can say in the first 45 bits,
- we have data, and then, the next streams of data will be in the next 100 ms. So it's enough to have a buffer
- who has 45 bits. because the data exists in the buffer already, is the data that we dont need anymore.
+ Altogether, we will have 41 bytes of data at peak data streaming. 
+ According to our scheduler, 1 Byte of data will be transmitted every 2 ms, 
+ so the buffer will be empty before arriving next data.
 */
 #define buffsize 41
 #define MAX_TASKS 4
