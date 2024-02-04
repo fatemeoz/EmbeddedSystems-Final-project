@@ -2,7 +2,7 @@
 
 **Course**: Embedded Systems
 
-January 2024
+**January 2024**
 
 **Professor**: Enrico Simetti
 
