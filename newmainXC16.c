@@ -337,10 +337,10 @@ void initPWM()
     OC4CON1bits.OCM = 0b110;
     // Sets the synchronization source for the OCx module to No Sync
     OC4CON2bits.SYNCSEL = 0x1F;
-    OC1RS = 144000000 / PWM_FREQ; // Set the PWM frequency
-    OC2RS = 144000000 / PWM_FREQ; // Set the PWM frequency
-    OC3RS = 144000000 / PWM_FREQ; // Set the PWM frequency
-    OC4RS = 144000000 / PWM_FREQ; // Set the PWM frequency
+    OC1RS = (FOSC/2) / PWM_FREQ; // Set the PWM frequency
+    OC2RS = (FOSC/2) / PWM_FREQ; // Set the PWM frequency
+    OC3RS = (FOSC/2) / PWM_FREQ; // Set the PWM frequency
+    OC4RS = (FOSC/2) / PWM_FREQ; // Set the PWM frequency
 }
 // Function to set the PWM duty cycle
 void setPWM(int ocNumber, int dc)
@@ -348,16 +348,16 @@ void setPWM(int ocNumber, int dc)
     switch (ocNumber)
     {
     case motorLB:
-        OC1R = (int)((144000000 / PWM_FREQ) * (dc / 100.0)); // Set the PWM Duty Cycle
+        OC1R = (int)(((FOSC/2) / PWM_FREQ) * (dc / 100.0)); // Set the PWM Duty Cycle
         break;
     case motorLF:
-        OC2R = (int)((144000000 / PWM_FREQ) * (dc / 100.0)); // Set the PWM Duty Cycle
+        OC2R = (int)(((FOSC/2) / PWM_FREQ) * (dc / 100.0)); // Set the PWM Duty Cycle
         break;
     case motorRB:
-        OC3R = (int)((144000000 / PWM_FREQ) * (dc / 100.0)); // Set the PWM Duty Cycle
+        OC3R = (int)(((FOSC/2) / PWM_FREQ) * (dc / 100.0)); // Set the PWM Duty Cycle
         break;
     case motorRF:
-        OC4R = (int)((144000000 / PWM_FREQ) * (dc / 100.0)); // Set the PWM Duty Cycle
+        OC4R = (int)(((FOSC/2) / PWM_FREQ) * (dc / 100.0)); // Set the PWM Duty Cycle
         break;
     }
 }
