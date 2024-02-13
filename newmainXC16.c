@@ -30,7 +30,7 @@ Course: Embedded Systems
  According to our scheduler, 1 Byte of data will be transmitted every 2 ms, 
  so the buffer will be empty before arriving next data.
 */
-#define buffsize 41
+#define buffsize 50
 #define MAX_TASKS 3
 #define PWM_FREQ 10000
 
@@ -245,7 +245,7 @@ void initPins()
 // Initialize UART2
 void initUART2()
 {
-    const int baund = 9600;
+    const int baund = 28800;
     U2BRG = (FOSC / 2) / (16L * baund) - 1;
     U2MODEbits.UARTEN = 1; // enable UART2
     U2STAbits.UTXEN = 1;   // enable U2TX (must be after UARTEN)
