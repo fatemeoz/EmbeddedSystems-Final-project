@@ -31,7 +31,7 @@ Course: Embedded Systems
  so the buffer will be empty before arriving next data.
 */
 #define buffsize 41
-#define MAX_TASKS 4
+#define MAX_TASKS 3
 #define PWM_FREQ 10000
 
 // States definition
@@ -506,6 +506,15 @@ int isFull(const CircBuf *cb)
     return cb->maxlen == buffsize;
 }
 
+//to checkout unread and ready data
+int checkBytes(CircBuf* cb) {
+    if (cb->head <= cb->tail)
+        return cb->tail - cb->head;
+    else
+        return buffsize - cb->head + cb->tail;
+}
+
+
 // Function to put a value in the buffer
 int CircBufIn(CircBuf *cb, char value)
 {
@@ -535,8 +544,8 @@ char CircBufOut(CircBuf *cb)
 // Function to send data through UART2
 void UARTTX(CircBuf *cb)
 {
-    while (U2STAbits.UTXBF); // Wait while buffer is full
-    U2TXREG = CircBufOut(&CirBufTx);
+    while (!U2STAbits.UTXBF && checkBytes(&CirBufTx)>0) // untill the buffer is not full and we have data, send it. 
+        U2TXREG = CircBufOut(&CirBufTx);
 }
 
 // UART2 receive interrupt handler
@@ -781,7 +790,7 @@ void pcth(const char *msg)
 // Function to check the massage sent from the PC and detect the command
 void reciver()
 {
-    if (CirBufRx.maxlen > 0)
+    if (checkBytes(&CirBufTx))
     {
        int ret = parse_byte(&pstate, CircBufOut(&CirBufRx)); // parse the byte
         if (ret == NEW_MESSAGE)
@@ -808,7 +817,6 @@ void initTask_N()
     schedInfo[0].N = 1; // 1 KHz
     schedInfo[1].N = 100; // 10 Hz
     schedInfo[2].N = 1000; // 1 Hz
-    schedInfo[3].N = 2; // 500 Hz
 }
 
 // Scheduler function to handle all the tasks needed in the project
@@ -835,6 +843,9 @@ void scheduler()
                 pbHandller();
                 ledHandler();
                 reciver();
+                if (checkBytes(&CirBufTx)){
+                    UARTTX(&CirBufTx);
+                }
                 break;
             case 1: // 10 Hz
                 sendDistUART();
@@ -843,15 +854,6 @@ void scheduler()
             case 2: // 1 Hz
                 led_blinker();
                 batteryCalc();
-                break;
-            case 3: // 500 Hz
-            
-                    // Send the data through UART with baud rate of 9600. sendig each byte datta approximately takes 1.04 ms.
-                    // So, it is guaranteed that one byte of data will be transmitted every 2 ms.
-                if (CirBufTx.maxlen != 0)
-                {
-                    UARTTX(&CirBufTx);
-                }
                 break;
             }
             schedInfo[i].n = 0; // Reset the counter
