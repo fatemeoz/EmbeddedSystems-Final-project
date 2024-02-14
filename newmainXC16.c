@@ -524,7 +524,9 @@ int CircBufIn(CircBuf *cb, char value)
     }
     cb->buff[cb->tail] = value;
     cb->tail = (cb->tail + 1) % buffsize;
+    IEC1bits.U2RXIE = 0;   // Disable interrupt rx
     cb->maxlen++;
+    IEC1bits.U2RXIE = 1;   // enable interrupt rx
     return 1; // Enqueue successful
 }
 
@@ -537,7 +539,9 @@ char CircBufOut(CircBuf *cb)
     }
     char value = cb->buff[cb->head];
     cb->head = (cb->head + 1) % buffsize;
+    IEC1bits.U2RXIE = 0;   // Disable interrupt rx
     cb->maxlen--;
+    IEC1bits.U2RXIE = 1;   // enable interrupt rx
     return value;
 }
 
