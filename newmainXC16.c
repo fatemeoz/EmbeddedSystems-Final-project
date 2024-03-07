@@ -111,6 +111,9 @@ void initInterrupt();
 // Initialize PWM
 void initPWM();
 
+//initialize SPI
+void initSPI();
+
 // Function to set the PWM duty cycle
 void setPWM(int ocNumber, int dc);
 
@@ -210,6 +213,7 @@ int main()
     initTask_N(); // Initialize the N of the tasks
     initInterrupt(); // Initialize the interrupt
     initPWM(); // Initialize PWM
+    initSPI(); //Initialize SPI
     setMotorsZero(); // Set all motors to zero
     tmr_setup_period(TIMER1, 1);  // Setup timer1 to count for 1 ms
     parserinit(); // Initialize the parser
@@ -341,6 +345,15 @@ void initPWM()
     OC2RS = (FOSC/2) / PWM_FREQ; // Set the PWM frequency
     OC3RS = (FOSC/2) / PWM_FREQ; // Set the PWM frequency
     OC4RS = (FOSC/2) / PWM_FREQ; // Set the PWM frequency
+}
+// SPI initialization
+void initSPI(){   
+    SPI1STATbits.SPIEN = 1; // enable SPI
+    SPI1CONbits.MSTEN = 1; // Set SPI to master mode
+    SPI1CONbits.MODE16 = 1; // Set to 8-bit mode
+    SPI1CONbits.PPRE = 3; // Set 1:1 primary prescaler
+    SPI1CONbits.SPRE = 3; // Set 5:1 secondary prescaler
+    
 }
 // Function to set the PWM duty cycle
 void setPWM(int ocNumber, int dc)
